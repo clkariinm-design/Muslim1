@@ -1,10 +1,14 @@
 name: Android CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
@@ -26,3 +30,11 @@ jobs:
 
       - name: Run Lint, Unit/Robolectric Tests, and Debug APK Build
         run: gradle :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Muslim1-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
