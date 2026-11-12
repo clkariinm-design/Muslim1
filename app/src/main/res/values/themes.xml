@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NuurQuran" parent="android:Theme.Material.NoActionBar" />
+
+    <style name="Theme.NuurQuran.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#07271C</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.NuurQuran</item>
+    </style>
+</resources>

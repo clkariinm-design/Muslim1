@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Keep personal notes, bookmarks, and cached audio local by default -->
+    <exclude domain="database" path="nuur_quran.db" />
+    <exclude domain="file" path="audio" />
+</full-backup-content>

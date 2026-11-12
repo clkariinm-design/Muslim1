@@ -1,0 +1,6 @@
+{
+  "name": "Nuur Qur’an",
+  "description": "Muslim Qur’an Android app in Somali, Arabic, and English with Uthmani text, Tajweed, offline audio caching, Tafsir, Qibla, Prayer Times, Hijri calendar, and Adhkar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

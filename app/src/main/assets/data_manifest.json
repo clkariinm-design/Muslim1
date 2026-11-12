@@ -1,0 +1,22 @@
+{
+  "surahCount": 114,
+  "ayahCount": 6236,
+  "adhkarCount": 34,
+  "quranBundleUncompressedSha256": "b9340aa7d64150e4625ba9ff53580de2bd960ef1781ef7ae6d699e21daa6f13f",
+  "adhkarBundleUncompressedSha256": "52ac0543395807d94ddeb773668c8a941f618e1314dc1571f67660b0dc95c819",
+  "upstreamSourceHashes": {
+    "quran-uthmani": "0df03e1d6da4fc8138208fec1688f2b416f0dd4ebbd514179f3e5e0fbaf4195f",
+    "so.abduh": "6d75bd4c7d48b8e5aad09fc60fac9e466505658e39678b12ddd433afb1cb855c",
+    "en.sahih": "496ff9f8f5cafa6619c6605e0f3d7a30138cabad9a71976c3f8308c082a96454",
+    "quran-tajweed": "a80dca6b11351b1d79bea1523c3ff8af3289c6df5e3e48a2e1e11074c80ccb31",
+    "ar.muyassar": "e409898887a10a92de554b364c12c56a59b9030f2b07df94578040af234b7153"
+  },
+  "editions": {
+    "uthmani": "quran-uthmani (Tanzil Project via AlQuran Cloud, CC BY 3.0)",
+    "tajweed": "quran-tajweed (AlQuran Cloud, unmodified Quranic text + Tajweed tags)",
+    "somali": "so.abduh (Mahmud Muhammad Abduh via Tanzil / AlQuran Cloud)",
+    "english": "en.sahih (Saheeh International via Tanzil / AlQuran Cloud)",
+    "tafsir": "ar.muyassar (Tafsir Al-Muyassar, King Fahad Quran Complex via AlQuran Cloud)",
+    "adhkar": "Seen-Arabic/Morning-And-Evening-Adhkar-DB (MIT License)"
+  }
+}
