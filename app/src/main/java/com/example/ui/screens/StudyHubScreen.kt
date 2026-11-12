@@ -296,7 +296,7 @@ fun StudyHubScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(plan.title, style = MaterialTheme.typography.titleMedium)
                                         Text(
-                                            "${plan.targetDays} days • ${strings.dailyTargetLabel}: $daily ${strings.ayahsWord}",
+                                            "${plan.targetDays} ${strings.daysWord} • ${strings.dailyTargetLabel}: $daily ${strings.ayahsWord}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )

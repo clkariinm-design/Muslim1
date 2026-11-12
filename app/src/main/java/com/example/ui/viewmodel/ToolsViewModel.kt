@@ -7,6 +7,9 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.LocationManager
+import android.os.CancellationSignal
+import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -89,7 +92,7 @@ class ToolsViewModel(
                 SensorManager.getRotationMatrixFromVector(rotMat, event.values)
                 SensorManager.getOrientation(rotMat, orientation)
                 val deg = ((Math.toDegrees(orientation[0].toDouble()) + 360.0) % 360.0).toFloat()
-                _deviceAzimuth.value = deg
+                updateSmoothedAzimuth(deg)
             }
             Sensor.TYPE_ACCELEROMETER -> {
                 System.arraycopy(event.values, 0, lastAccel, 0, 3)
@@ -112,8 +115,18 @@ class ToolsViewModel(
             val orientation = FloatArray(3)
             SensorManager.getOrientation(rMat, orientation)
             val deg = ((Math.toDegrees(orientation[0].toDouble()) + 360.0) % 360.0).toFloat()
-            _deviceAzimuth.value = deg
+            updateSmoothedAzimuth(deg)
         }
+    }
+
+    private fun updateSmoothedAzimuth(rawDeg: Float) {
+        val prev = _deviceAzimuth.value
+        if (prev == null) {
+            _deviceAzimuth.value = rawDeg
+            return
+        }
+        val diff = ((rawDeg - prev + 540f) % 360f) - 180f
+        _deviceAzimuth.value = ((prev + 0.25f * diff) + 360f) % 360f
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -141,6 +154,8 @@ class ToolsViewModel(
         viewModelScope.launch { settingsRepository.setCalculationMethod(method) }
     }
 
+    private var locationCancelSignal: CancellationSignal? = null
+
     @SuppressLint("MissingPermission")
     fun applyDeviceCoarseLocation() {
         val lm = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
@@ -148,23 +163,57 @@ class ToolsViewModel(
             _locationFeedback.value = "Location service unavailable"
             return
         }
-        val loc = runCatching {
+        val cached = runCatching {
             lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                 ?: lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
                 ?: lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
         }.getOrNull()
 
-        if (loc != null) {
-            _locationFeedback.value = null
-            viewModelScope.launch {
-                settingsRepository.setDeviceCoordinates(
-                    latitude = loc.latitude,
-                    longitude = loc.longitude,
-                    timezoneId = TimeZone.getDefault().id
-                )
+        if (cached != null) {
+            saveLocation(cached.latitude, cached.longitude)
+        }
+
+        val provider = when {
+            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+            else -> null
+        }
+
+        if (provider != null) {
+            locationCancelSignal?.cancel()
+            val signal = CancellationSignal()
+            locationCancelSignal = signal
+            runCatching {
+                LocationManagerCompat.getCurrentLocation(
+                    lm,
+                    provider,
+                    signal,
+                    ContextCompat.getMainExecutor(appContext)
+                ) { fresh ->
+                    if (fresh != null) {
+                        saveLocation(fresh.latitude, fresh.longitude)
+                    } else if (cached == null) {
+                        _locationFeedback.value = "Unable to acquire GPS/network fix; please select a city manually."
+                    }
+                }
+            }.onFailure {
+                if (cached == null) {
+                    _locationFeedback.value = "No cached device location; select a city manually."
+                }
             }
-        } else {
-            _locationFeedback.value = "No cached device location yet; select a city manually or enable GPS."
+        } else if (cached == null) {
+            _locationFeedback.value = "Location provider disabled; please select a city manually."
+        }
+    }
+
+    private fun saveLocation(lat: Double, lon: Double) {
+        _locationFeedback.value = null
+        viewModelScope.launch {
+            settingsRepository.setDeviceCoordinates(
+                latitude = lat,
+                longitude = lon,
+                timezoneId = TimeZone.getDefault().id
+            )
         }
     }
 

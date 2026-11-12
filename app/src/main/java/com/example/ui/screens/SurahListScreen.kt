@@ -54,7 +54,8 @@ fun SurahListScreen(
     audioState: PlaybackUiState,
     strings: AppStrings,
     onOpenSurah: (Int) -> Unit,
-    onDownloadSurah: (SurahEntity) -> Unit
+    onDownloadSurah: (SurahEntity) -> Unit,
+    onCancelDownload: () -> Unit = {}
 ) {
     var filterQuery by remember { mutableStateOf("") }
     var onlyOffline by remember { mutableStateOf(false) }
@@ -166,17 +167,24 @@ fun SurahListScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
-                                onClick = { if (!isOfflineReady && !isDownloading) onDownloadSurah(surah) },
+                                onClick = {
+                                    when {
+                                        isDownloading -> onCancelDownload()
+                                        !isOfflineReady -> onDownloadSurah(surah)
+                                    }
+                                },
                                 modifier = Modifier
                                     .size(48.dp)
                                     .testTag("surah_download_${surah.number}")
                             ) {
                                 when {
-                                    isDownloading -> CircularProgressIndicator(
-                                        progress = { audioState.downloadProgress },
-                                        modifier = Modifier.size(22.dp),
-                                        strokeWidth = 2.5.dp
-                                    )
+                                    isDownloading -> Box(contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(
+                                            progress = { audioState.downloadProgress },
+                                            modifier = Modifier.size(22.dp),
+                                            strokeWidth = 2.5.dp
+                                        )
+                                    }
                                     isOfflineReady -> Icon(
                                         imageVector = Icons.Default.CloudDone,
                                         contentDescription = strings.downloadedOffline,

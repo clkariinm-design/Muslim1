@@ -93,14 +93,36 @@ class QuranRepository(
         }
     }
 
+    suspend fun removeBookmarkByGlobalAyah(globalAyahNumber: Int) = withContext(Dispatchers.IO) {
+        studyDao.deleteBookmarkByGlobalAyah(globalAyahNumber)
+    }
+
     suspend fun saveNote(ayah: AyahEntity, existingId: Long = 0L, title: String, body: String) {
+        saveNoteByRef(
+            existingId = existingId,
+            globalAyahNumber = ayah.globalNumber,
+            surahNumber = ayah.surahNumber,
+            ayahNumber = ayah.numberInSurah,
+            title = title,
+            body = body
+        )
+    }
+
+    suspend fun saveNoteByRef(
+        existingId: Long,
+        globalAyahNumber: Int,
+        surahNumber: Int,
+        ayahNumber: Int,
+        title: String,
+        body: String
+    ) {
         withContext(Dispatchers.IO) {
             studyDao.insertOrUpdateNote(
                 NoteEntity(
                     id = existingId,
-                    globalAyahNumber = ayah.globalNumber,
-                    surahNumber = ayah.surahNumber,
-                    ayahNumber = ayah.numberInSurah,
+                    globalAyahNumber = globalAyahNumber,
+                    surahNumber = surahNumber,
+                    ayahNumber = ayahNumber,
                     title = title.trim(),
                     body = body.trim(),
                     updatedAt = System.currentTimeMillis()

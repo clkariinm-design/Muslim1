@@ -155,8 +155,25 @@ class AppViewModel(
         viewModelScope.launch { quranRepository.toggleBookmark(ayah) }
     }
 
+    fun removeBookmark(globalAyahNumber: Int) {
+        viewModelScope.launch { quranRepository.removeBookmarkByGlobalAyah(globalAyahNumber) }
+    }
+
     fun saveNote(ayah: AyahEntity, existingId: Long = 0L, title: String, body: String) {
         viewModelScope.launch { quranRepository.saveNote(ayah, existingId, title, body) }
+    }
+
+    fun updateNote(
+        noteId: Long,
+        globalAyahNumber: Int,
+        surahNumber: Int,
+        ayahNumber: Int,
+        title: String,
+        body: String
+    ) {
+        viewModelScope.launch {
+            quranRepository.saveNoteByRef(noteId, globalAyahNumber, surahNumber, ayahNumber, title, body)
+        }
     }
 
     fun deleteNote(noteId: Long) {
@@ -213,6 +230,10 @@ class AppViewModel(
             val ayahs = quranRepository.getAyahsBySurahSync(surah.number)
             audioManager.downloadSurahAudio(surah, ayahs, settings.value.selectedReciterId)
         }
+    }
+
+    fun cancelSurahDownload() {
+        audioManager.cancelDownload()
     }
 
     fun deleteSurahAudio(surahNumber: Int) {

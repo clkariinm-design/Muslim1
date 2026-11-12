@@ -17,11 +17,13 @@ import com.example.data.local.AyahEntity
 import com.example.data.local.DownloadedAudioEntity
 import com.example.data.local.SurahEntity
 import com.example.domain.RecitersCatalog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -286,6 +288,7 @@ class AudioPlaybackManager(
                 runCatching {
                     val total = ayahs.size.coerceAtLeast(1)
                     ayahs.forEachIndexed { idx, ayah ->
+                        coroutineContext.ensureActive()
                         val dest = RecitersCatalog.localAudioFile(context.filesDir, reciterId, ayah.globalNumber)
                         if (!dest.exists() || dest.length() == 0L) {
                             val url = RecitersCatalog.audioUrlForAyah(reciterId, ayah.globalNumber)
@@ -293,7 +296,12 @@ class AudioPlaybackManager(
                             httpClient.newCall(req).execute().use { resp ->
                                 if (!resp.isSuccessful) error("HTTP ${resp.code} for ayah ${ayah.numberInSurah}")
                                 val bytes = resp.body?.bytes() ?: error("Empty audio response")
-                                dest.writeBytes(bytes)
+                                val tmp = File(dest.parentFile, "${dest.name}.tmp")
+                                tmp.writeBytes(bytes)
+                                if (!tmp.renameTo(dest)) {
+                                    dest.writeBytes(bytes)
+                                    tmp.delete()
+                                }
                             }
                         }
                         audioDao.insertAudio(
@@ -310,6 +318,8 @@ class AudioPlaybackManager(
                             it.copy(downloadProgress = (idx + 1).toFloat() / total.toFloat())
                         }
                     }
+                }.onFailure { err ->
+                    if (err is CancellationException) throw err
                 }
             }
             _state.update {
@@ -321,6 +331,12 @@ class AudioPlaybackManager(
             }
             onComplete(result)
         }
+    }
+
+    fun cancelDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _state.update { it.copy(downloadingSurahNumber = null, downloadProgress = 0f) }
     }
 
     fun deleteSurahAudio(surahNumber: Int, reciterId: String) {

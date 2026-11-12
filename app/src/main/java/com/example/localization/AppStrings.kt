@@ -120,7 +120,16 @@ data class AppStrings(
     val loadingData: String,
     val dataVerifiedBadge: String,
     val retry: String,
-    val close: String
+    val close: String,
+    val fajrLabel: String,
+    val sunriseLabel: String,
+    val dhuhrLabel: String,
+    val asrLabel: String,
+    val maghribLabel: String,
+    val ishaLabel: String,
+    val surahLabel: String,
+    val cancelDownload: String,
+    val daysWord: String
 )
 
 fun stringsFor(lang: AppLanguage): AppStrings = when (lang) {
@@ -211,7 +220,7 @@ fun stringsFor(lang: AppLanguage): AppStrings = when (lang) {
         prayerVerificationNotice = "Fiiro gaar ah: Waqtiyadan waxaa lagu xisaabiyay qaab xiddigis ah. Fadlan ku xaqiiji waqtiyada masjidkaaga ama jadwalada rasmiga ah ee deegaankaaga.",
         selectCity = "Dooro Magaalo",
         useDeviceLocation = "Isticmaal Goobta Aaladda (Ikhtiyaari)",
-        locationPurposeNote = "Ogolaanshaha goobta (Course Location) waa ikhtiyaari waxaana loo isticmaalaa oo keliya in lagu xisaabiyo jihada Qiblada iyo waqtiyada salaadda ee gudaha taleefanka.",
+        locationPurposeNote = "Ogolaanshaha goobta (Coarse Location) waa ikhtiyaari waxaana loo isticmaalaa oo keliya in lagu xisaabiyo jihada Qiblada iyo waqtiyada salaadda ee gudaha taleefanka.",
         locationPermissionDenied = "Ogolaanshaha goobta waa la diiday. Waad dooran kartaa magaalo gacanta ah.",
         calculationMethod = "Habka Xisaabinta",
         timezoneLabel = "Aagga Waqtiga (Timezone)",
@@ -234,7 +243,16 @@ fun stringsFor(lang: AppLanguage): AppStrings = when (lang) {
         loadingData = "Waa la diyaarinayaa 6,236 aayadood ee Qur’aanka...",
         dataVerifiedBadge = "La xaqiijiyay: 114 Suuradood • 6,236 Aayadood",
         retry = "Isku day mar kale",
-        close = "Xir"
+        close = "Xir",
+        fajrLabel = "Subax (Fajr)",
+        sunriseLabel = "Qorrax-soo-bax",
+        dhuhrLabel = "Duhur (Dhuhr)",
+        asrLabel = "Casar (Asr)",
+        maghribLabel = "Maqrib (Maghrib)",
+        ishaLabel = "Cishe (Isha)",
+        surahLabel = "Suuradda",
+        cancelDownload = "Jooji Soo-dejinta",
+        daysWord = "maalmood"
     )
     AppLanguage.ARABIC -> AppStrings(
         appTitle = "نور القرآن",
@@ -346,7 +364,16 @@ fun stringsFor(lang: AppLanguage): AppStrings = when (lang) {
         loadingData = "جاري تحضير ٦٬٢٣٦ آية من المصحف الشريف...",
         dataVerifiedBadge = "تم التحقق: ١١٤ سورة • ٦٬٢٣٦ آية",
         retry = "إعادة المحاولة",
-        close = "إغلاق"
+        close = "إغلاق",
+        fajrLabel = "الفجر",
+        sunriseLabel = "الشروق",
+        dhuhrLabel = "الظهر",
+        asrLabel = "العصر",
+        maghribLabel = "المغرب",
+        ishaLabel = "العشاء",
+        surahLabel = "سورة",
+        cancelDownload = "إلغاء التحميل",
+        daysWord = "أيام"
     )
     AppLanguage.ENGLISH -> AppStrings(
         appTitle = "Nuur Qur’an",
@@ -458,6 +485,15 @@ fun stringsFor(lang: AppLanguage): AppStrings = when (lang) {
         loadingData = "Preparing 6,236 verified Qur’an ayahs...",
         dataVerifiedBadge = "Verified: 114 Surahs • 6,236 Ayahs",
         retry = "Retry",
-        close = "Close"
+        close = "Close",
+        fajrLabel = "Fajr",
+        sunriseLabel = "Sunrise",
+        dhuhrLabel = "Dhuhr",
+        asrLabel = "Asr",
+        maghribLabel = "Maghrib",
+        ishaLabel = "Isha",
+        surahLabel = "Surah",
+        cancelDownload = "Cancel Download",
+        daysWord = "days"
     )
 }

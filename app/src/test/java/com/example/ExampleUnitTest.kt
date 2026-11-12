@@ -1,16 +1,46 @@
 package com.example
 
-import org.junit.Assert.*
+import com.example.domain.CalculationMethod
+import com.example.domain.PrayerTimesCalculator
+import com.example.domain.TajweedParser
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
 class ExampleUnitTest {
-  @Test
-  fun addition_isCorrect() {
-    assertEquals(4, 2 + 2)
-  }
+
+    @Test
+    fun `tajweed parser strips rule brackets accurately`() {
+        val sample = "[h:1[ٱ]للَّهِ ٱل[l[رَّ]حْمَ[n[ـٰ]نِ"
+        assertEquals("ٱللَّهِ ٱلرَّحْمَـٰنِ", TajweedParser.stripTags(sample))
+        val parsed = TajweedParser.parseToAnnotatedString(sample)
+        assertEquals("ٱللَّهِ ٱلرَّحْمَـٰنِ", parsed.text)
+    }
+
+    @Test
+    fun `qibla bearing for Mogadishu points north-northwest toward Makkah`() {
+        val bearing = PrayerTimesCalculator.calculateQiblaBearing(2.0469, 45.3182)
+        // Expected initial great-circle bearing from Mogadishu to Kaaba is ~344-345 deg
+        assertTrue("Expected bearing in 340..350, got $bearing", bearing in 340.0..350.0)
+    }
+
+    @Test
+    fun `prayer times calculation produces valid ordered HH mm strings`() {
+        val result = PrayerTimesCalculator.calculatePrayerTimes(
+            latitude = 2.0469,
+            longitude = 45.3182,
+            timezoneId = "Africa/Mogadishu",
+            method = CalculationMethod.MWL,
+            epochMillis = 1_767_225_600_000L // 2026-01-01T00:00:00Z
+        )
+        val hhmm = Regex("""^\d{2}:\d{2}$""")
+        listOf(result.fajr, result.sunrise, result.dhuhr, result.asr, result.maghrib, result.isha).forEach {
+            assertTrue("Invalid time format: $it", hhmm.matches(it))
+        }
+        assertTrue(result.fajr < result.sunrise)
+        assertTrue(result.sunrise < result.dhuhr)
+        assertTrue(result.dhuhr < result.asr)
+        assertTrue(result.asr < result.maghrib)
+        assertTrue(result.maghrib < result.isha)
+    }
 }
