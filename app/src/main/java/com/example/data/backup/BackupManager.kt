@@ -1,11 +1,11 @@
-package com.example.data.backup
+package com.nuur.muslim.data.backup
 
-import com.example.data.local.BookmarkEntity
-import com.example.data.local.NoteEntity
-import com.example.data.local.QuranDatabase
-import com.example.data.local.ReadingPlanEntity
-import com.example.data.local.SettingsRepository
-import com.example.data.local.UserSettings
+import com.nuur.muslim.data.local.BookmarkEntity
+import com.nuur.muslim.data.local.NoteEntity
+import com.nuur.muslim.data.local.QuranDatabase
+import com.nuur.muslim.data.local.ReadingPlanEntity
+import com.nuur.muslim.data.local.SettingsRepository
+import com.nuur.muslim.data.local.UserSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
