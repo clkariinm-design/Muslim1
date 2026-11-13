@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import android.hardware.SensorManager
 import android.net.Uri
@@ -20,14 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.data.local.AdhkarItem
-import com.example.data.local.AyahEntity
-import com.example.data.local.UserSettings
-import com.example.domain.AsrMadhhab
-import com.example.domain.CalculationMethod
-import com.example.domain.CuratedCity
-import com.example.localization.AppStrings
-import com.example.ui.viewmodel.LocationUiStatus
+import com.nuur.muslim.data.local.AdhkarItem
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.AsrMadhhab
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.CuratedCity
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.viewmodel.LocationUiStatus
 
 @Composable
 fun ToolsScreen(
