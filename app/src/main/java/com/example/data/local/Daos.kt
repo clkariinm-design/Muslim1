@@ -36,6 +36,12 @@ interface QuranDao {
     suspend fun getAyahCount(): Int
 
     @Query("SELECT * FROM surahs ORDER BY number ASC")
+    suspend fun getAllSurahsSync(): List<SurahEntity>
+
+    @Query("SELECT * FROM ayahs ORDER BY globalNumber ASC")
+    suspend fun getAllAyahsSync(): List<AyahEntity>
+
+    @Query("SELECT * FROM surahs ORDER BY number ASC")
     fun observeAllSurahs(): Flow<List<SurahEntity>>
 
     @Query("SELECT * FROM surahs WHERE number = :surahNumber LIMIT 1")
@@ -141,8 +147,16 @@ interface QuranDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAyahs(ayahs: List<AyahEntity>)
 
+    @Query("DELETE FROM ayahs")
+    suspend fun clearAyahs()
+
+    @Query("DELETE FROM surahs")
+    suspend fun clearSurahs()
+
     @Transaction
     suspend fun seedAll(surahs: List<SurahEntity>, ayahs: List<AyahEntity>) {
+        clearAyahs()
+        clearSurahs()
         insertSurahs(surahs)
         ayahs.chunked(500).forEach { chunk ->
             insertAyahs(chunk)

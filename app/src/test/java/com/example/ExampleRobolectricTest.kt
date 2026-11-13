@@ -67,6 +67,32 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `same Quran row counts with modified text are detected and repaired`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, QuranDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            QuranDatabase.ensureSeededAndVerified(context, db)
+            val dao = db.quranDao()
+            val original = dao.getAyahByGlobalNumber(1)!!
+            dao.insertAyahs(listOf(original.copy(textUthmani = "tampered")))
+
+            // Counts still look complete, but the stored Quran text no longer matches the asset.
+            assertEquals(114, dao.getSurahCount())
+            assertEquals(6236, dao.getAyahCount())
+
+            QuranDatabase.ensureSeededAndVerified(context, db)
+
+            assertEquals(original, dao.getAyahByGlobalNumber(1))
+            assertEquals(114, dao.getAllSurahsSync().size)
+            assertEquals(6236, dao.getAllAyahsSync().size)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun `repository supports surah-ayah lookup, bookmark toggle and note CRUD`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, QuranDatabase::class.java)

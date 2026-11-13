@@ -463,7 +463,13 @@ object PrayerTimesCalculator {
     private fun hourAngle(angle: Double, lat: Double, decl: Double): Double {
         val num = -dsin(angle) - dsin(lat) * dsin(decl)
         val den = dcos(lat) * dcos(decl)
-        val ratio = (num / den).coerceIn(-1.0, 1.0)
+        if (abs(den) < 1e-12) return Double.NaN
+
+        val ratio = num / den
+        // Do not clamp an impossible solar crossing into a fabricated 0h/12h hour angle.
+        // NaN is rendered as "--:--" by formatHour and skipped by next-prayer selection.
+        if (!ratio.isFinite() || ratio !in -1.0..1.0) return Double.NaN
+
         return Math.toDegrees(acos(ratio)) / 15.0
     }
 

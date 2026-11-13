@@ -52,13 +52,7 @@ abstract class QuranDatabase : RoomDatabase() {
             val manifest = json.decodeFromString<DataManifest>(manifestBytes.decodeToString())
 
             val dao = db.quranDao()
-            val existingSurahs = dao.getSurahCount()
-            val existingAyahs = dao.getAyahCount()
-
-            if (existingSurahs == 114 && existingAyahs == 6236) {
-                return manifest
-            }
-
+            // Verify the source asset on every check; row counts alone cannot detect altered rows.
             val uncompressedBytes = context.assets.open("quran_bundle.bin").use { raw ->
                 GZIPInputStream(raw).use { gz -> gz.readBytes() }
             }
@@ -69,10 +63,12 @@ abstract class QuranDatabase : RoomDatabase() {
             }
 
             val bundle = json.decodeFromString<QuranBundleRoot>(uncompressedBytes.decodeToString())
-            check(bundle.surahs.size == 114) { "Expected 114 surahs, found ${bundle.surahs.size}" }
+            check(bundle.surahs.size == manifest.surahCount && manifest.surahCount == 114) {
+                "Expected 114 surahs, found ${bundle.surahs.size}"
+            }
 
-            val surahEntities = ArrayList<SurahEntity>(114)
-            val ayahEntities = ArrayList<AyahEntity>(6236)
+            val surahEntities = ArrayList<SurahEntity>(manifest.surahCount)
+            val ayahEntities = ArrayList<AyahEntity>(manifest.ayahCount)
 
             for (s in bundle.surahs) {
                 surahEntities.add(
@@ -108,8 +104,15 @@ abstract class QuranDatabase : RoomDatabase() {
                 }
             }
 
-            check(ayahEntities.size == 6236) { "Expected 6,236 ayahs, found ${ayahEntities.size}" }
-            dao.seedAll(surahEntities, ayahEntities)
+            check(ayahEntities.size == manifest.ayahCount && manifest.ayahCount == 6236) {
+                "Expected 6,236 ayahs, found ${ayahEntities.size}"
+            }
+
+            // Compare complete persisted rows, not only table counts. Re-seed atomically if any
+            // Qur'an text or metadata has changed or a row is missing/extra.
+            if (dao.getAllSurahsSync() != surahEntities || dao.getAllAyahsSync() != ayahEntities) {
+                dao.seedAll(surahEntities, ayahEntities)
+            }
             return manifest
         }
 
