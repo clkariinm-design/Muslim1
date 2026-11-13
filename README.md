@@ -1,4 +1,4 @@
-# Nuur Qur’an (`com.aistudio.nuurquran.mzkqrx`)
+# Nuur Qur’an (`com.nuur.muslim`)
 
 Modern **Islamic Luxury** (Dark Emerald & Gold) Android Qur’an application built with **Kotlin + Jetpack Compose + Material 3**, MVVM architecture, Room local database, DataStore Preferences, and Media3 ExoPlayer.
 
