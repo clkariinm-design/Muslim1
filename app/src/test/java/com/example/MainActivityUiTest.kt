@@ -1,17 +1,17 @@
-package com.example
+package com.nuur.muslim
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import com.example.data.local.SurahEntity
-import com.example.data.local.UserSettings
-import com.example.localization.AppLanguage
-import com.example.localization.stringsFor
-import com.example.ui.screens.HomeScreen
-import com.example.ui.screens.SurahListScreen
-import com.example.audio.PlaybackUiState
-import com.example.ui.theme.AppThemeMode
-import com.example.ui.theme.NuurQuranTheme
+import com.nuur.muslim.data.local.SurahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.stringsFor
+import com.nuur.muslim.ui.screens.HomeScreen
+import com.nuur.muslim.ui.screens.SurahListScreen
+import com.nuur.muslim.audio.PlaybackUiState
+import com.nuur.muslim.ui.theme.AppThemeMode
+import com.nuur.muslim.ui.theme.NuurQuranTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
