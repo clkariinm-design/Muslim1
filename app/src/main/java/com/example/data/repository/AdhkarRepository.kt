@@ -1,9 +1,9 @@
-package com.example.data.repository
+package com.nuur.muslim.data.repository
 
 import android.content.Context
-import com.example.data.local.AdhkarItem
-import com.example.data.local.DataManifest
-import com.example.data.local.QuranDatabase
+import com.nuur.muslim.data.local.AdhkarItem
+import com.nuur.muslim.data.local.DataManifest
+import com.nuur.muslim.data.local.QuranDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
