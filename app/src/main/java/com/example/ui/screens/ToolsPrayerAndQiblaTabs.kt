@@ -2,6 +2,7 @@ package com.nuur.muslim.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.hardware.SensorManager
 import android.os.Build
