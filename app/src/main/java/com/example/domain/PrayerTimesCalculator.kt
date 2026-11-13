@@ -1,4 +1,4 @@
-package com.example.domain
+package com.nuur.muslim.domain
 
 import android.os.Build
 import java.time.Instant
