@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -55,14 +55,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.AyahEntity
-import com.example.data.local.BookmarkWithAyah
-import com.example.data.local.NoteWithAyah
-import com.example.data.local.ReadingPlanEntity
-import com.example.data.local.SurahEntity
-import com.example.data.local.UserSettings
-import com.example.localization.AppStrings
-import com.example.ui.theme.AmiriFontFamily
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.BookmarkWithAyah
+import com.nuur.muslim.data.local.NoteWithAyah
+import com.nuur.muslim.data.local.ReadingPlanEntity
+import com.nuur.muslim.data.local.SurahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.theme.AmiriFontFamily
 
 @Composable
 fun StudyHubScreen(
