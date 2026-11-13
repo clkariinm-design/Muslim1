@@ -1,11 +1,11 @@
-package com.example.domain
+package com.nuur.muslim.domain
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import com.example.ui.theme.TajweedPalette
+import com.nuur.muslim.ui.theme.TajweedPalette
 
 data class TajweedRuleSpec(
     val code: String,
