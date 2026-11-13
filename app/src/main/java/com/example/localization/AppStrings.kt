@@ -1,4 +1,4 @@
-package com.example.localization
+package com.nuur.muslim.localization
 
 enum class AppLanguage(val code: String, val nativeName: String) {
     SOMALI("so", "Soomaali"),
