@@ -10,10 +10,8 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Build
 import android.os.CancellationSignal
-import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.ViewModel
@@ -317,52 +315,8 @@ class ToolsViewModel(
         }
     }
 
-    fun importCustomAdhan(uri: Uri, strings: AppStrings) {
-        viewModelScope.launch {
-            val importedName = withContext(Dispatchers.IO) {
-                runCatching {
-                    val fileName = resolveDisplayName(uri) ?: "adhan_custom.mp3"
-                    val dest = AdhanPlaybackService.customAdhanFile(appContext)
-                    val stream = appContext.contentResolver.openInputStream(uri)
-                        ?: error("Cannot open selected audio file")
-                    AudioPlaybackManager.writeStreamAtomically(stream, dest)
-                    fileName
-                }
-            }
-            importedName.onSuccess { name ->
-                settingsRepository.setCustomAdhanFileName(name)
-                _adhanFeedback.value = "${strings.adhanSavedMsg}: $name"
-            }.onFailure {
-                _adhanFeedback.value = strings.adhanLoadErrorMsg
-            }
-        }
-    }
-
-    fun clearCustomAdhan(strings: AppStrings) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching { AdhanPlaybackService.customAdhanFile(appContext).delete() }
-            }
-            settingsRepository.setCustomAdhanFileName(null)
-            _adhanFeedback.value = strings.adhanRemovedMsg
-        }
-    }
-
     fun stopAdhanPlayback() {
         AdhanPlaybackService.stopAdhan(appContext)
-    }
-
-    private fun resolveDisplayName(uri: Uri): String? {
-        runCatching {
-            appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                ?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (idx >= 0) return cursor.getString(idx)
-                    }
-                }
-        }
-        return uri.lastPathSegment?.substringAfterLast('/')
     }
 
     private suspend fun syncRemindersIfNeeded() {

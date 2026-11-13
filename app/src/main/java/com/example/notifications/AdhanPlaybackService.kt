@@ -181,10 +181,10 @@ class AdhanPlaybackService : Service() {
     }
 
     private fun configureAudioSource(player: MediaPlayer): Boolean {
-        val customFile = customAdhanFile(this)
-        if (customFile.exists() && customFile.length() > 0L) {
+        val downloadedFile = AdhanAudioRepository.cachedAdhanFile(this)
+        if (downloadedFile.exists() && downloadedFile.length() > 0L) {
             val ok = runCatching {
-                player.setDataSource(customFile.absolutePath)
+                player.setDataSource(downloadedFile.absolutePath)
             }.isSuccess
             if (ok) return true
             player.reset()
@@ -304,15 +304,12 @@ class AdhanPlaybackService : Service() {
             }
         }
 
-        fun customAdhanFile(context: Context): File {
-            val dir = File(context.filesDir, "adhan")
-            return File(dir, "custom_adhan")
-        }
-
         fun bundledAdhanResId(context: Context): Int =
             context.resources.getIdentifier("adhan", "raw", context.packageName)
 
-        fun hasBundledAdhan(context: Context): Boolean = bundledAdhanResId(context) != 0
+        fun hasBundledAdhan(context: Context): Boolean =
+            AdhanAudioRepository.cachedAdhanFile(context).let { it.isFile && it.length() > 0L } ||
+                bundledAdhanResId(context) != 0
 
         fun startAdhan(
             context: Context,

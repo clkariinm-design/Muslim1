@@ -7,6 +7,7 @@ import com.nuur.muslim.data.local.SettingsRepository
 import com.nuur.muslim.data.repository.AdhkarRepository
 import com.nuur.muslim.data.repository.QuranRepository
 import com.nuur.muslim.notifications.PrayerReminderScheduler
+import com.nuur.muslim.notifications.AdhanAudioRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,9 @@ class NuurQuranApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        appScope.launch {
+            runCatching { AdhanAudioRepository.ensureDownloaded(this@NuurQuranApplication) }
+        }
         appScope.launch {
             runCatching {
                 val settings = settingsRepository.settingsFlow.first()
