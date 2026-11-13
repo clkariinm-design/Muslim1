@@ -1,13 +1,13 @@
-package com.example
+package com.nuur.muslim
 
-import com.example.data.local.UserSettings
-import com.example.domain.CalculationMethod
-import com.example.domain.CuratedCities
-import com.example.domain.PrayerTimesCalculator
-import com.example.domain.RecitersCatalog
-import com.example.domain.TajweedParser
-import com.example.localization.AppLanguage
-import com.example.localization.stringsFor
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.CuratedCities
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.domain.RecitersCatalog
+import com.nuur.muslim.domain.TajweedParser
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.stringsFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -115,7 +115,7 @@ class PrayerAndTajweedTest {
         assertTrue(CuratedCities.cities.size >= 150)
         assertEquals(CuratedCities.cities.size, CuratedCities.cities.map { it.id }.toSet().size)
         assertEquals(
-            com.example.domain.WorldRegion.entries.toSet(),
+            com.nuur.muslim.domain.WorldRegion.entries.toSet(),
             CuratedCities.cities.map { it.region }.toSet()
         )
 
@@ -151,11 +151,11 @@ class PrayerAndTajweedTest {
 
         assertEquals(
             "Europe/Stockholm",
-            com.example.domain.WorldCitiesCatalog.inferTimezoneId("SE", 59.33, 18.06)
+            com.nuur.muslim.domain.WorldCitiesCatalog.inferTimezoneId("SE", 59.33, 18.06)
         )
         assertEquals(
             "America/Chicago",
-            com.example.domain.WorldCitiesCatalog.inferTimezoneId("US", 44.97, -93.26)
+            com.nuur.muslim.domain.WorldCitiesCatalog.inferTimezoneId("US", 44.97, -93.26)
         )
     }
 }
