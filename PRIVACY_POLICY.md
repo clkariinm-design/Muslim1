@@ -50,11 +50,13 @@ The app declares permissions related to notifications, foreground media playback
 
 Notification permission is requested at runtime on Android 13 and later, according to the project documentation. You can manage notification and alarm permissions through Android settings. Audio playback may use Android's media playback service and system media controls.
 
-## 6. Sharing and sale of information
+## 6. Advertising, sharing, and sale of information
 
-The developer must complete a code and SDK audit before making any statement about sale, sharing, advertising, analytics, or tracking. This draft makes no unsupported promise that the app collects no data, shares no data, or contains no third-party SDK data collection.
+**Advertising plan:** The developer's current plan is to release Nuur Qur’an without advertisements. Advertisements may be considered for a future version. This statement describes the intended release plan and must be checked against the exact app build before publication.
 
-**Before publication, state accurately whether the app uses advertising, analytics, crash reporting, attribution, Firebase, or other SDKs, and describe any data those services process.** Update this policy and the Google Play Data safety form to match the shipped app.
+If advertising is introduced in a future version, this policy must be updated before or when that version is released. The updated policy must identify the advertising provider(s), explain what information they collect or receive (which may include device identifiers, IP address, app interactions, or approximate location depending on the SDK and configuration), describe relevant user choices, and match the Google Play Data safety form. The developer must also review Google Play's Families and advertising requirements if the app is directed to children.
+
+The developer must complete a code and SDK audit before making any statement about data collection, sharing, sale, analytics, crash reporting, attribution, Firebase, or tracking. The no-advertising plan does not mean that the app collects no data or that third-party online services receive no technical connection information. Do not claim otherwise unless the shipped code and SDK behavior have been verified.
 
 ## 7. Data retention and deletion
 
