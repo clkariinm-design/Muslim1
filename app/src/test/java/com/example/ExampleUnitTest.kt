@@ -1,8 +1,8 @@
-package com.example
+package com.nuur.muslim
 
-import com.example.domain.CalculationMethod
-import com.example.domain.PrayerTimesCalculator
-import com.example.domain.TajweedParser
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.domain.TajweedParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
