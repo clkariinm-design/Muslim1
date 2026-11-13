@@ -1,4 +1,4 @@
-package com.example
+package com.nuur.muslim
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -76,22 +76,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.example.localization.AppLanguage
-import com.example.localization.stringsFor
-import com.example.ui.components.FullAudioPlayerSheet
-import com.example.ui.components.MiniAudioPlayerBar
-import com.example.ui.navigation.AppRoute
-import com.example.ui.screens.HomeScreen
-import com.example.ui.screens.ReaderScreen
-import com.example.ui.screens.SearchScreen
-import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.StudyHubScreen
-import com.example.ui.screens.SurahListScreen
-import com.example.ui.screens.ToolsScreen
-import com.example.ui.theme.NuurQuranTheme
-import com.example.ui.viewmodel.AppViewModel
-import com.example.ui.viewmodel.DataInitState
-import com.example.ui.viewmodel.ToolsViewModel
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.stringsFor
+import com.nuur.muslim.ui.components.FullAudioPlayerSheet
+import com.nuur.muslim.ui.components.MiniAudioPlayerBar
+import com.nuur.muslim.ui.navigation.AppRoute
+import com.nuur.muslim.ui.screens.HomeScreen
+import com.nuur.muslim.ui.screens.ReaderScreen
+import com.nuur.muslim.ui.screens.SearchScreen
+import com.nuur.muslim.ui.screens.SettingsScreen
+import com.nuur.muslim.ui.screens.StudyHubScreen
+import com.nuur.muslim.ui.screens.SurahListScreen
+import com.nuur.muslim.ui.screens.ToolsScreen
+import com.nuur.muslim.ui.theme.NuurQuranTheme
+import com.nuur.muslim.ui.viewmodel.AppViewModel
+import com.nuur.muslim.ui.viewmodel.DataInitState
+import com.nuur.muslim.ui.viewmodel.ToolsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -195,7 +195,7 @@ private data class TopNavItem(
 private fun NuurQuranAppShell(
     appViewModel: AppViewModel,
     toolsViewModel: ToolsViewModel,
-    manifest: com.example.data.local.DataManifest
+    manifest: com.nuur.muslim.data.local.DataManifest
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
