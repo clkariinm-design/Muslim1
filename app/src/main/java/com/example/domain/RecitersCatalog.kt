@@ -1,4 +1,4 @@
-package com.example.domain
+package com.nuur.muslim.domain
 
 import java.io.File
 
