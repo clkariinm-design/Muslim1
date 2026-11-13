@@ -50,11 +50,13 @@ The app declares permissions related to notifications, foreground media playback
 
 Notification permission is requested at runtime on Android 13 and later, according to the project documentation. You can manage notification and alarm permissions through Android settings. Audio playback may use Android's media playback service and system media controls.
 
-## 6. Sharing and sale of information
+## 6. Advertising, analytics, and sharing
 
-The developer must complete a code and SDK audit before making any statement about sale, sharing, advertising, analytics, or tracking. This draft makes no unsupported promise that the app collects no data, shares no data, or contains no third-party SDK data collection.
+**The initial release of Nuur Qur’an is planned to contain no advertisements.** The developer does not intend to display ads in the initial release.
 
-**Before publication, state accurately whether the app uses advertising, analytics, crash reporting, attribution, Firebase, or other SDKs, and describe any data those services process.** Update this policy and the Google Play Data safety form to match the shipped app.
+This statement is limited to the initial release plan. It is not a claim that the app has been fully audited for every form of analytics, crash reporting, attribution, Firebase, or other third-party SDK data collection. Those components and their network behavior must be checked against the exact release build before publication, and any data processing must be described accurately in this policy and the Google Play Data safety form.
+
+If advertising is introduced in a later version, the developer will review and update this policy, the app's disclosures, and the Google Play Data safety form before distributing that version. Any advertising SDK and its data practices must be disclosed as required.
 
 ## 7. Data retention and deletion
 
