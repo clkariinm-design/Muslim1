@@ -12,7 +12,7 @@ This file is an inventory based on the project README. It is not a substitute fo
 | English translation (`en.sahih`) | AlQuran Cloud / Tanzil | CC BY 3.0 / Tanzil attribution | Verify exact edition, attribution, and licence conditions. |
 | Arabic Tafsir Al-Muyassar (`ar.muyassar`) | AlQuran Cloud / Tanzil | CC BY 3.0 / Tanzil attribution | Verify the tafsir publisher/rightsholder and exact redistribution terms; do not assume all tafsir text is covered by the same licence. |
 | Morning and Evening Adhkar | `Seen-Arabic/Morning-And-Evening-Adhkar-DB` | MIT, as stated in README | Include the upstream MIT copyright and permission notice for the exact version used. Verify Arabic/English text provenance separately. |
-| Audio recitations | Islamic Network CDN | No licence identified in README | Obtain and document redistribution/offline-download permissions for each reciter/recording. Streaming availability alone does not prove redistribution rights. |
+| Audio recitations | Islamic Network CDN | AlAdhan states that audio files retain their respective copyrights; its community guidance says the network imposes no additional usage restriction, but does not grant rights on behalf of reciters. | Default Adhan source: Ahmad al-Nafees, served from https://cdn.aladhan.com/audio/adhans/a1.mp3 and cached privately in app storage. Retain source/reciter attribution and verify the recording rightsholder's terms before commercial redistribution. |
 | Optional online Tafsir Ibn Kathir | Quran.com API v4 | API/service terms not recorded here | Review current API terms, attribution rules, caching limits, and permitted use. |
 
 ## Android libraries and build plugins

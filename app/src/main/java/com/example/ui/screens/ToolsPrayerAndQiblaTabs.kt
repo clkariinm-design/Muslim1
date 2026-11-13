@@ -2,9 +2,9 @@ package com.nuur.muslim.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.hardware.SensorManager
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -97,8 +97,6 @@ internal fun PrayerTimesTab(
     onTogglePrayerNotifications: (Boolean) -> Unit = {},
     isAdhanPlaying: Boolean = false,
     adhanFeedback: String? = null,
-    onPickAdhanAudio: (Uri) -> Unit = {},
-    onClearAdhanAudio: () -> Unit = {},
     onStopAdhan: () -> Unit = {},
     locationStatus: LocationUiStatus = LocationUiStatus(),
     onSearchWorldCities: suspend (String) -> List<CuratedCity> = { emptyList() }
@@ -110,14 +108,6 @@ internal fun PrayerTimesTab(
     ) { granted ->
         if (granted) {
             onTogglePrayerNotifications(true)
-        }
-    }
-
-    val adhanPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            onPickAdhanAudio(uri)
         }
     }
 
@@ -337,14 +327,11 @@ internal fun PrayerTimesTab(
 
         // Local Consent-Based Notifications & Adhan Audio Card
         item {
-            val hasCustomFile = remember(settings.customAdhanFileName) {
-                AdhanPlaybackService.customAdhanFile(context).let { it.exists() && it.length() > 0L }
-            }
             val hasBundledAdhan = remember { AdhanPlaybackService.hasBundledAdhan(context) }
-            val adhanSourceLabel = when {
-                hasCustomFile && !settings.customAdhanFileName.isNullOrBlank() -> settings.customAdhanFileName
-                hasBundledAdhan -> strings.adhanAudioBundled
-                else -> strings.adhanAudioDefault
+            val adhanSourceLabel = if (hasBundledAdhan) {
+                strings.adhanAudioBundled
+            } else {
+                strings.adhanAudioDefault
             }
             val canExactAlarms = PrayerReminderScheduler.canScheduleExactAlarms(context)
 
@@ -426,59 +413,30 @@ internal fun PrayerTimesTab(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (hasCustomFile) {
-                            IconButton(
-                                onClick = onClearAdhanAudio,
-                                modifier = Modifier.testTag("clear_adhan_audio_button")
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = strings.delete
-                                )
-                            }
-                        }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { adhanPickerLauncher.launch(arrayOf("audio/*")) },
+                    if (isAdhanPlaying) {
+                        FilledTonalButton(
+                            onClick = onStopAdhan,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            ),
                             modifier = Modifier
-                                .weight(1f)
-                                .testTag("pick_adhan_audio_button")
+                                .fillMaxWidth()
+                                .testTag("stop_adhan_button")
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = strings.adhanPickAudio,
+                                text = strings.adhanStopPlay,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                        }
-
-                        if (isAdhanPlaying) {
-                            FilledTonalButton(
-                                onClick = onStopAdhan,
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("stop_adhan_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Stop,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = strings.adhanStopPlay,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
                         }
                     }
 

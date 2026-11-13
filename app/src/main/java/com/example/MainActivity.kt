@@ -627,8 +627,6 @@ private fun NuurQuranAppShell(
                             onTogglePrayerNotifications = { toolsViewModel.setPrayerNotificationsEnabled(it) },
                             isAdhanPlaying = isAdhanPlaying,
                             adhanFeedback = adhanFeedback,
-                            onPickAdhanAudio = { uri -> toolsViewModel.importCustomAdhan(uri, strings) },
-                            onClearAdhanAudio = { toolsViewModel.clearCustomAdhan(strings) },
                             onStopAdhan = { toolsViewModel.stopAdhanPlayback() },
                             onToggleFavoriteAdhkar = { toolsViewModel.toggleFavoriteAdhkar(it) },
                             onIncrementTasbih = { toolsViewModel.incrementTasbih() },

@@ -1,7 +1,6 @@
 package com.nuur.muslim.ui.screens
 
 import android.hardware.SensorManager
-import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,8 +53,6 @@ fun ToolsScreen(
     onTogglePrayerNotifications: (Boolean) -> Unit = {},
     isAdhanPlaying: Boolean = false,
     adhanFeedback: String? = null,
-    onPickAdhanAudio: (Uri) -> Unit = {},
-    onClearAdhanAudio: () -> Unit = {},
     onStopAdhan: () -> Unit = {},
     onToggleFavoriteAdhkar: (Int) -> Unit = {},
     onIncrementTasbih: () -> Unit = {},
@@ -114,8 +111,6 @@ fun ToolsScreen(
                     onTogglePrayerNotifications = onTogglePrayerNotifications,
                     isAdhanPlaying = isAdhanPlaying,
                     adhanFeedback = adhanFeedback,
-                    onPickAdhanAudio = onPickAdhanAudio,
-                    onClearAdhanAudio = onClearAdhanAudio,
                     onStopAdhan = onStopAdhan,
                     locationStatus = locationStatus,
                     onSearchWorldCities = onSearchWorldCities
