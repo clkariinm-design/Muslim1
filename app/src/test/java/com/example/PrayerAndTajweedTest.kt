@@ -58,6 +58,21 @@ class PrayerAndTajweedTest {
     }
 
     @Test
+    fun `high latitude summer day does not fabricate sunrise or sunset`() {
+        val times = PrayerTimesCalculator.calculatePrayerTimes(
+            latitude = 69.65,
+            longitude = 18.96,
+            timezoneId = "Europe/Oslo",
+            method = CalculationMethod.MWL,
+            epochMillis = java.time.Instant.parse("2026-06-21T12:00:00Z").toEpochMilli()
+        )
+
+        // Tromsø has no sunrise/sunset crossing near the June solstice.
+        assertEquals("--:--", times.sunrise)
+        assertEquals("--:--", times.maghrib)
+    }
+
+    @Test
     fun `all 17 tajweed rule specs and all languages and reciters are populated`() {
         assertEquals(17, TajweedParser.rules.size)
         assertEquals(7, RecitersCatalog.reciters.size)

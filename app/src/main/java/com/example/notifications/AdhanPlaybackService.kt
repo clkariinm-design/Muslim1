@@ -140,7 +140,10 @@ class AdhanPlaybackService : Service() {
 
     private fun startAdhanAudio() {
         releasePlayerOnly()
-        requestAudioFocus()
+        if (!requestAudioFocus()) {
+            stopPlaybackAndService()
+            return
+        }
 
         val player = MediaPlayer()
         val attributes = AudioAttributes.Builder()
@@ -210,27 +213,27 @@ class AdhanPlaybackService : Service() {
         }.isSuccess
     }
 
-    private fun requestAudioFocus() {
-        val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+    private fun requestAudioFocus(): Boolean {
+        val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
         audioManager = am
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                 .setAudioAttributes(attrs)
                 .setOnAudioFocusChangeListener(focusChangeListener)
                 .build()
             audioFocusRequest = req
-            am.requestAudioFocus(req)
+            am.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         } else {
             @Suppress("DEPRECATION")
             am.requestAudioFocus(
                 focusChangeListener,
                 AudioManager.STREAM_MUSIC,
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
-            )
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
     }
 
