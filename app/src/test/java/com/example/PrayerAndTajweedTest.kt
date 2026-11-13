@@ -1,12 +1,15 @@
 package com.example
 
+import com.example.data.local.UserSettings
 import com.example.domain.CalculationMethod
+import com.example.domain.CuratedCities
 import com.example.domain.PrayerTimesCalculator
 import com.example.domain.RecitersCatalog
 import com.example.domain.TajweedParser
 import com.example.localization.AppLanguage
 import com.example.localization.stringsFor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,6 +65,97 @@ class PrayerAndTajweedTest {
             val s = stringsFor(lang)
             assertTrue(s.appTitle.isNotBlank())
             assertTrue(s.prayerVerificationNotice.isNotBlank())
+            assertTrue(s.adhanPickAudio.isNotBlank())
+            assertTrue(s.adhanStopPlay.isNotBlank())
         }
+    }
+
+    @Test
+    fun `next obligatory prayer skips sunrise and chains cleanly across all five prayers`() {
+        var cursor = 1762905600000L // 2025-11-12T00:00:00Z
+        val seenIndices = mutableListOf<Int>()
+        repeat(6) {
+            val next = PrayerTimesCalculator.calculateNextObligatoryPrayer(
+                latitude = 2.0469,
+                longitude = 45.3182,
+                timezoneId = "Africa/Mogadishu",
+                method = CalculationMethod.MWL,
+                epochMillis = cursor,
+                minDelayMillis = 70_000L
+            )
+            assertTrue("Sunrise (index 1) must be skipped for Adhan alarms", next.prayerIndex != 1)
+            assertTrue(next.prayerIndex in listOf(0, 2, 3, 4, 5))
+            assertTrue("Trigger must be strictly in the future", next.triggerAtMillis >= cursor + 70_000L)
+            seenIndices.add(next.prayerIndex)
+            cursor = next.triggerAtMillis
+        }
+        assertEquals(listOf(0, 2, 3, 4, 5, 0), seenIndices)
+    }
+
+    @Test
+    fun `all upcoming obligatory prayers returns all five daily prayers excluding sunrise`() {
+        val now = 1762934400000L // 2025-11-12T08:00:00Z (11:00 Mogadishu)
+        val prayers = PrayerTimesCalculator.calculateAllUpcomingObligatoryPrayers(
+            latitude = 2.0469,
+            longitude = 45.3182,
+            timezoneId = "Africa/Mogadishu",
+            method = CalculationMethod.MWL,
+            epochMillis = now,
+            minDelayMillis = 5_000L
+        )
+        assertEquals(5, prayers.size)
+        assertEquals(setOf(0, 2, 3, 4, 5), prayers.map { it.prayerIndex }.toSet())
+        assertTrue(prayers.none { it.prayerIndex == 1 })
+        assertTrue(prayers.all { it.triggerAtMillis >= now + 5_000L })
+        assertTrue(prayers.zipWithNext().all { (a, b) -> a.triggerAtMillis < b.triggerAtMillis })
+    }
+
+    @Test
+    fun `curated cities and active location display name resolve accurately`() {
+        assertTrue(CuratedCities.cities.size >= 150)
+        assertEquals(CuratedCities.cities.size, CuratedCities.cities.map { it.id }.toSet().size)
+        assertEquals(
+            com.example.domain.WorldRegion.entries.toSet(),
+            CuratedCities.cities.map { it.region }.toSet()
+        )
+
+        val nearHargeisa = CuratedCities.findNearestCity(9.55, 44.08)
+        assertEquals("hargeisa", nearHargeisa?.id)
+
+        val midOcean = CuratedCities.findNearestCity(0.0, -30.0)
+        assertNull(midOcean)
+
+        val labeledGps = UserSettings(
+            useCustomGpsCoords = true,
+            customLatitude = 9.55,
+            customLongitude = 44.08,
+            customLocationLabel = "Hargeysa, Somalia"
+        )
+        assertEquals("Hargeysa, Somalia", labeledGps.activeLocationDisplayName())
+
+        val nearestFallbackGps = UserSettings(
+            useCustomGpsCoords = true,
+            customLatitude = 2.05,
+            customLongitude = 45.32,
+            customLocationLabel = null
+        )
+        assertTrue(nearestFallbackGps.activeLocationDisplayName().contains("Muqdisho"))
+
+        val farGpsNeverShowsRawCoords = UserSettings(
+            useCustomGpsCoords = true,
+            customLatitude = 0.0,
+            customLongitude = -30.0,
+            customLocationLabel = null
+        )
+        assertTrue(!farGpsNeverShowsRawCoords.activeLocationDisplayName().contains("GPS ("))
+
+        assertEquals(
+            "Europe/Stockholm",
+            com.example.domain.WorldCitiesCatalog.inferTimezoneId("SE", 59.33, 18.06)
+        )
+        assertEquals(
+            "America/Chicago",
+            com.example.domain.WorldCitiesCatalog.inferTimezoneId("US", 44.97, -93.26)
+        )
     }
 }

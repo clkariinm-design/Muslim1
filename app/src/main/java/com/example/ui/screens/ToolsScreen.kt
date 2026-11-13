@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.hardware.SensorManager
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
 import com.example.domain.CuratedCity
 import com.example.localization.AppStrings
+import com.example.ui.viewmodel.LocationUiStatus
 
 @Composable
 fun ToolsScreen(
@@ -50,12 +52,19 @@ fun ToolsScreen(
     compassAccuracy: Int = SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM,
     onSelectAsrMadhhab: (AsrMadhhab) -> Unit = {},
     onTogglePrayerNotifications: (Boolean) -> Unit = {},
+    isAdhanPlaying: Boolean = false,
+    adhanFeedback: String? = null,
+    onPickAdhanAudio: (Uri) -> Unit = {},
+    onClearAdhanAudio: () -> Unit = {},
+    onStopAdhan: () -> Unit = {},
     onToggleFavoriteAdhkar: (Int) -> Unit = {},
     onIncrementTasbih: () -> Unit = {},
     onResetTasbih: () -> Unit = {},
     onSelectTasbihTarget: (Int) -> Unit = {},
     onSelectTasbihLabel: (String) -> Unit = {},
-    onToggleTasbihHaptic: (Boolean) -> Unit = {}
+    onToggleTasbihHaptic: (Boolean) -> Unit = {},
+    locationStatus: LocationUiStatus = LocationUiStatus(),
+    onSearchWorldCities: suspend (String) -> List<CuratedCity> = { emptyList() }
 ) {
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     val tabs = listOf(
@@ -102,7 +111,14 @@ fun ToolsScreen(
                     onRequestDeviceLocation = onRequestDeviceLocation,
                     onLocationDenied = onLocationDenied,
                     onSelectAsrMadhhab = onSelectAsrMadhhab,
-                    onTogglePrayerNotifications = onTogglePrayerNotifications
+                    onTogglePrayerNotifications = onTogglePrayerNotifications,
+                    isAdhanPlaying = isAdhanPlaying,
+                    adhanFeedback = adhanFeedback,
+                    onPickAdhanAudio = onPickAdhanAudio,
+                    onClearAdhanAudio = onClearAdhanAudio,
+                    onStopAdhan = onStopAdhan,
+                    locationStatus = locationStatus,
+                    onSearchWorldCities = onSearchWorldCities
                 )
                 1 -> QiblaTab(
                     settings = settings,

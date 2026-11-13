@@ -6,28 +6,53 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.location.Address
+import android.location.Geocoder
+import android.location.Location
 import android.location.LocationManager
+import android.net.Uri
+import android.os.Build
 import android.os.CancellationSignal
+import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.NuurQuranApplication
+import com.example.audio.AudioPlaybackManager
 import com.example.data.local.AdhkarItem
 import com.example.data.local.SettingsRepository
 import com.example.data.repository.AdhkarRepository
 import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
+import com.example.domain.CuratedCities
 import com.example.domain.CuratedCity
+import com.example.domain.WorldCitiesCatalog
+import com.example.domain.WorldRegion
+import com.example.localization.AppStrings
+import com.example.notifications.AdhanPlaybackService
 import com.example.notifications.PrayerReminderScheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 import java.util.TimeZone
+import kotlin.coroutines.resume
+
+data class LocationUiStatus(
+    val isLocating: Boolean = false,
+    val message: String? = null,
+    val isError: Boolean = false,
+    val isProviderDisabled: Boolean = false
+)
 
 class ToolsViewModel(
     private val appContext: Context,
@@ -52,6 +77,14 @@ class ToolsViewModel(
 
     private val _locationFeedback = MutableStateFlow<String?>(null)
     val locationFeedback: StateFlow<String?> = _locationFeedback.asStateFlow()
+
+    private val _locationStatus = MutableStateFlow(LocationUiStatus())
+    val locationStatus: StateFlow<LocationUiStatus> = _locationStatus.asStateFlow()
+
+    val isAdhanPlaying: StateFlow<Boolean> = AdhanPlaybackService.isPlaying
+
+    private val _adhanFeedback = MutableStateFlow<String?>(null)
+    val adhanFeedback: StateFlow<String?> = _adhanFeedback.asStateFlow()
 
     private val sensorManager = appContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val rotationSensor: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -174,12 +207,82 @@ class ToolsViewModel(
         viewModelScope.launch { settingsRepository.setTasbihHapticEnabled(enabled) }
     }
 
-    fun selectManualCity(city: CuratedCity) {
+    fun selectManualCity(city: CuratedCity, strings: AppStrings? = null) {
         _locationFeedback.value = null
+        val display = if (city.id.startsWith("world_") && city.country.isNotBlank()) {
+            "${city.name}, ${city.country}"
+        } else {
+            city.name
+        }
+        _locationStatus.value = LocationUiStatus(
+            isLocating = false,
+            message = strings?.let { "${it.locationUpdatedMsg}: $display" },
+            isError = false,
+            isProviderDisabled = false
+        )
         viewModelScope.launch {
-            settingsRepository.setManualCity(city.id, city.latitude, city.longitude, city.timezoneId)
+            if (city.id.startsWith("world_")) {
+                settingsRepository.setManualWorldPlace(
+                    placeLabel = display,
+                    latitude = city.latitude,
+                    longitude = city.longitude,
+                    timezoneId = city.timezoneId
+                )
+            } else {
+                settingsRepository.setManualCity(city.id, city.latitude, city.longitude, city.timezoneId)
+            }
             syncRemindersIfNeeded()
         }
+    }
+
+    fun markLocationPermissionPrompted() {
+        viewModelScope.launch {
+            settingsRepository.markLocationPermissionPrompted()
+        }
+    }
+
+    suspend fun searchWorldCitiesOnline(query: String): List<CuratedCity> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
+        if (trimmed.length < 3 || !Geocoder.isPresent()) return@withContext emptyList()
+        runCatching {
+            val geocoder = Geocoder(appContext, Locale.getDefault())
+            val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                withTimeoutOrNull(3_500L) {
+                    suspendCancellableCoroutine { cont ->
+                        geocoder.getFromLocationName(trimmed, 6, object : Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<Address>) {
+                                if (cont.isActive) cont.resume(addresses)
+                            }
+
+                            override fun onError(errorMessage: String?) {
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        })
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(trimmed, 6)
+            }
+            addresses.orEmpty().mapNotNull { addr ->
+                val cityName = addr.locality ?: addr.subAdminArea ?: addr.adminArea ?: addr.featureName
+                    ?: return@mapNotNull null
+                val countryName = addr.countryName ?: ""
+                val countryCode = addr.countryCode ?: ""
+                val tz = WorldCitiesCatalog.inferTimezoneId(countryCode, addr.latitude, addr.longitude)
+                val idKey = "world_${(addr.latitude * 1000).toInt()}_${(addr.longitude * 1000).toInt()}"
+                CuratedCity(
+                    id = idKey,
+                    name = cityName,
+                    country = countryName,
+                    latitude = addr.latitude,
+                    longitude = addr.longitude,
+                    timezoneId = tz,
+                    region = WorldRegion.SOMALIA_HORN,
+                    countryCode = countryCode
+                )
+            }.distinctBy { "${it.name.lowercase()}|${it.country.lowercase()}" }
+        }.getOrDefault(emptyList())
     }
 
     fun setTimezone(tzId: String) {
@@ -206,9 +309,60 @@ class ToolsViewModel(
     fun setPrayerNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setPrayerNotificationsEnabled(enabled)
+            if (!enabled) {
+                AdhanPlaybackService.stopAdhan(appContext)
+            }
             val updated = settingsRepository.settingsFlow.first()
             PrayerReminderScheduler.syncSchedule(appContext, updated)
         }
+    }
+
+    fun importCustomAdhan(uri: Uri, strings: AppStrings) {
+        viewModelScope.launch {
+            val importedName = withContext(Dispatchers.IO) {
+                runCatching {
+                    val fileName = resolveDisplayName(uri) ?: "adhan_custom.mp3"
+                    val dest = AdhanPlaybackService.customAdhanFile(appContext)
+                    val stream = appContext.contentResolver.openInputStream(uri)
+                        ?: error("Cannot open selected audio file")
+                    AudioPlaybackManager.writeStreamAtomically(stream, dest)
+                    fileName
+                }
+            }
+            importedName.onSuccess { name ->
+                settingsRepository.setCustomAdhanFileName(name)
+                _adhanFeedback.value = "${strings.adhanSavedMsg}: $name"
+            }.onFailure {
+                _adhanFeedback.value = strings.adhanLoadErrorMsg
+            }
+        }
+    }
+
+    fun clearCustomAdhan(strings: AppStrings) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { AdhanPlaybackService.customAdhanFile(appContext).delete() }
+            }
+            settingsRepository.setCustomAdhanFileName(null)
+            _adhanFeedback.value = strings.adhanRemovedMsg
+        }
+    }
+
+    fun stopAdhanPlayback() {
+        AdhanPlaybackService.stopAdhan(appContext)
+    }
+
+    private fun resolveDisplayName(uri: Uri): String? {
+        runCatching {
+            appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (idx >= 0) return cursor.getString(idx)
+                    }
+                }
+        }
+        return uri.lastPathSegment?.substringAfterLast('/')
     }
 
     private suspend fun syncRemindersIfNeeded() {
@@ -219,69 +373,194 @@ class ToolsViewModel(
     private var locationCancelSignal: CancellationSignal? = null
 
     @SuppressLint("MissingPermission")
-    fun applyDeviceCoarseLocation() {
+    fun applyDeviceCoarseLocation(strings: AppStrings? = null, silent: Boolean = false) {
         val lm = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (lm == null) {
-            _locationFeedback.value = "Location service unavailable"
+            if (!silent) {
+                val msg = strings?.locationFixFailedMsg ?: "Location service unavailable"
+                _locationFeedback.value = msg
+                _locationStatus.value = LocationUiStatus(isLocating = false, message = msg, isError = true)
+            }
             return
         }
-        val cached = runCatching {
-            lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
-                ?: lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        }.getOrNull()
 
-        if (cached != null) {
-            saveLocation(cached.latitude, cached.longitude)
+        val cached = listOfNotNull(
+            runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull(),
+            runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
+            runCatching { lm.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER) }.getOrNull()
+        ).maxByOrNull { it.time }
+
+        if (!LocationManagerCompat.isLocationEnabled(lm) && cached == null) {
+            if (!silent) {
+                val msg = strings?.locationProviderDisabledMsg
+                    ?: "Device Location Services are turned off. Enable Location or pick a city."
+                _locationFeedback.value = msg
+                _locationStatus.value = LocationUiStatus(
+                    isLocating = false,
+                    message = msg,
+                    isError = true,
+                    isProviderDisabled = true
+                )
+            }
+            return
         }
 
-        val provider = when {
-            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-            else -> null
+        locationCancelSignal?.cancel()
+        val signal = CancellationSignal()
+        locationCancelSignal = signal
+
+        if (!silent) {
+            _locationFeedback.value = null
+            _locationStatus.value = LocationUiStatus(
+                isLocating = true,
+                message = strings?.locatingProgress,
+                isError = false,
+                isProviderDisabled = false
+            )
         }
 
-        if (provider != null) {
-            locationCancelSignal?.cancel()
-            val signal = CancellationSignal()
-            locationCancelSignal = signal
-            runCatching {
-                LocationManagerCompat.getCurrentLocation(
-                    lm,
-                    provider,
-                    signal,
-                    ContextCompat.getMainExecutor(appContext)
-                ) { fresh ->
-                    if (fresh != null) {
-                        saveLocation(fresh.latitude, fresh.longitude)
-                    } else if (cached == null) {
-                        _locationFeedback.value = "Unable to acquire GPS/network fix; please select a city manually."
-                    }
+        viewModelScope.launch {
+            if (cached != null) {
+                saveResolvedLocation(cached.latitude, cached.longitude, strings, showSuccessToast = false)
+            }
+
+            val providersToTry = buildList {
+                if (runCatching { lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }.getOrDefault(false)) {
+                    add(LocationManager.NETWORK_PROVIDER)
                 }
-            }.onFailure {
-                if (cached == null) {
-                    _locationFeedback.value = "No cached device location; select a city manually."
+                if (runCatching { lm.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false)) {
+                    add(LocationManager.GPS_PROVIDER)
                 }
             }
-        } else if (cached == null) {
-            _locationFeedback.value = "Location provider disabled; please select a city manually."
+
+            var freshFix: Location? = null
+            for (provider in providersToTry) {
+                if (signal.isCanceled) break
+                val attempt = withTimeoutOrNull(8_000L) {
+                    requestSingleFix(lm, provider, signal)
+                }
+                if (attempt != null) {
+                    freshFix = attempt
+                    break
+                }
+            }
+
+            val bestFix = freshFix ?: cached
+            if (bestFix != null) {
+                saveResolvedLocation(bestFix.latitude, bestFix.longitude, strings, showSuccessToast = !silent)
+            } else if (!silent) {
+                val isOff = !LocationManagerCompat.isLocationEnabled(lm)
+                val msg = if (isOff) {
+                    strings?.locationProviderDisabledMsg
+                        ?: "Device Location Services are turned off. Enable Location or pick a city."
+                } else {
+                    strings?.locationFixFailedMsg
+                        ?: "Could not acquire location right now. Please select a city or retry."
+                }
+                _locationFeedback.value = msg
+                _locationStatus.value = LocationUiStatus(
+                    isLocating = false,
+                    message = msg,
+                    isError = true,
+                    isProviderDisabled = isOff
+                )
+            }
         }
     }
 
-    private fun saveLocation(lat: Double, lon: Double) {
-        _locationFeedback.value = null
-        viewModelScope.launch {
-            settingsRepository.setDeviceCoordinates(
-                latitude = lat,
-                longitude = lon,
-                timezoneId = TimeZone.getDefault().id
-            )
-            syncRemindersIfNeeded()
+    @SuppressLint("MissingPermission")
+    private suspend fun requestSingleFix(
+        lm: LocationManager,
+        provider: String,
+        signal: CancellationSignal
+    ): Location? = suspendCancellableCoroutine { cont ->
+        runCatching {
+            LocationManagerCompat.getCurrentLocation(
+                lm,
+                provider,
+                signal,
+                ContextCompat.getMainExecutor(appContext)
+            ) { loc ->
+                if (cont.isActive) cont.resume(loc)
+            }
+        }.onFailure {
+            if (cont.isActive) cont.resume(null)
         }
+    }
+
+    private suspend fun saveResolvedLocation(
+        lat: Double,
+        lon: Double,
+        strings: AppStrings?,
+        showSuccessToast: Boolean
+    ) {
+        val resolvedName = resolvePlaceName(lat, lon)
+        settingsRepository.setDeviceCoordinates(
+            latitude = lat,
+            longitude = lon,
+            timezoneId = TimeZone.getDefault().id,
+            locationLabel = resolvedName
+        )
+        syncRemindersIfNeeded()
+        _locationFeedback.value = null
+        if (showSuccessToast) {
+            val baseMsg = strings?.locationUpdatedMsg ?: "Location updated"
+            val labelSuffix = resolvedName ?: CuratedCities.defaultCity.name
+            _locationStatus.value = LocationUiStatus(
+                isLocating = false,
+                message = "$baseMsg: $labelSuffix",
+                isError = false,
+                isProviderDisabled = false
+            )
+        }
+    }
+
+    private suspend fun resolvePlaceName(lat: Double, lon: Double): String? = withContext(Dispatchers.IO) {
+        val geocoded = runCatching {
+            if (!Geocoder.isPresent()) return@runCatching null
+            val geocoder = Geocoder(appContext, Locale.getDefault())
+            val addresses: List<Address>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                withTimeoutOrNull(3_000L) {
+                    suspendCancellableCoroutine { cont ->
+                        geocoder.getFromLocation(lat, lon, 1, object : Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<Address>) {
+                                if (cont.isActive) cont.resume(addresses)
+                            }
+
+                            override fun onError(errorMessage: String?) {
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        })
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(lat, lon, 1)
+            }
+            val first = addresses?.firstOrNull()
+            val city = first?.locality ?: first?.subAdminArea ?: first?.adminArea
+            val country = first?.countryName
+            when {
+                !city.isNullOrBlank() && !country.isNullOrBlank() -> "$city, $country"
+                !city.isNullOrBlank() -> city
+                !country.isNullOrBlank() -> country
+                else -> null
+            }
+        }.getOrNull()
+
+        geocoded
+            ?: CuratedCities.findNearestCity(lat, lon, maxDistanceKm = 75.0)?.name
+            ?: CuratedCities.findNearestCity(lat, lon, maxDistanceKm = Double.MAX_VALUE)?.name
     }
 
     fun setLocationDeniedMessage(message: String) {
         _locationFeedback.value = message
+        _locationStatus.value = LocationUiStatus(
+            isLocating = false,
+            message = message,
+            isError = true,
+            isProviderDisabled = false
+        )
     }
 
     class Factory(private val app: NuurQuranApplication) : ViewModelProvider.Factory {

@@ -162,11 +162,7 @@ fun HomeScreen(
         else -> strings.ishaLabel.substringBefore(" (")
     }
 
-    val cityLabel = if (settings.useCustomGpsCoords) {
-        "GPS (${"%.2f".format(settings.customLatitude)}, ${"%.2f".format(settings.customLongitude)})"
-    } else {
-        CuratedCities.findById(settings.selectedCityId).name
-    }
+    val cityLabel = settings.activeLocationDisplayName()
 
     val featuredSurahs = remember(surahs) {
         val ids = setOf(1, 2, 18, 36, 55, 67)

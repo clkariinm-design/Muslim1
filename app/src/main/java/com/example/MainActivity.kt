@@ -46,6 +46,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +63,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -219,6 +225,9 @@ private fun NuurQuranAppShell(
     val hasCompassSensor by toolsViewModel.hasCompassSensor.collectAsStateWithLifecycle()
     val compassAccuracy by toolsViewModel.compassAccuracy.collectAsStateWithLifecycle()
     val locationFeedback by toolsViewModel.locationFeedback.collectAsStateWithLifecycle()
+    val locationStatus by toolsViewModel.locationStatus.collectAsStateWithLifecycle()
+    val isAdhanPlaying by toolsViewModel.isAdhanPlaying.collectAsStateWithLifecycle()
+    val adhanFeedback by toolsViewModel.adhanFeedback.collectAsStateWithLifecycle()
 
     var showFullAudioPlayer by remember { mutableStateOf(false) }
     var backupFeedback by remember { mutableStateOf<String?>(null) }
@@ -249,6 +258,62 @@ private fun NuurQuranAppShell(
     }
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var lastLocationGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val startupLocationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        lastLocationGranted = granted
+        if (granted) {
+            toolsViewModel.applyDeviceCoarseLocation(strings, silent = false)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        lastLocationGranted = granted
+        if (granted) {
+            if (settings.useCustomGpsCoords || !settings.hasExplicitManualCity) {
+                toolsViewModel.applyDeviceCoarseLocation(strings, silent = true)
+            }
+        } else if (!settings.hasPromptedLocation && !settings.hasExplicitManualCity) {
+            toolsViewModel.markLocationPermissionPrompted()
+            startupLocationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, locationStatus.isProviderDisabled) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val nowGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!lastLocationGranted && nowGranted) {
+                    lastLocationGranted = true
+                    toolsViewModel.applyDeviceCoarseLocation(strings, silent = false)
+                } else if (nowGranted && locationStatus.isProviderDisabled) {
+                    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? android.location.LocationManager
+                    if (lm != null && LocationManagerCompat.isLocationEnabled(lm)) {
+                        toolsViewModel.applyDeviceCoarseLocation(strings, silent = false)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var askedNotificationPermission by remember { mutableStateOf(false) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -548,10 +613,10 @@ private fun NuurQuranAppShell(
                             deviceAzimuth = deviceAzimuth,
                             hasCompassSensor = hasCompassSensor,
                             locationFeedback = locationFeedback,
-                            onSelectCity = { toolsViewModel.selectManualCity(it) },
+                            onSelectCity = { toolsViewModel.selectManualCity(it, strings) },
                             onSelectMethod = { toolsViewModel.setCalculationMethod(it) },
                             onSelectTimezone = { toolsViewModel.setTimezone(it) },
-                            onRequestDeviceLocation = { toolsViewModel.applyDeviceCoarseLocation() },
+                            onRequestDeviceLocation = { toolsViewModel.applyDeviceCoarseLocation(strings) },
                             onLocationDenied = { toolsViewModel.setLocationDeniedMessage(it) },
                             onStartCompass = { toolsViewModel.startCompass() },
                             onStopCompass = { toolsViewModel.stopCompass() },
@@ -560,12 +625,21 @@ private fun NuurQuranAppShell(
                             compassAccuracy = compassAccuracy,
                             onSelectAsrMadhhab = { toolsViewModel.setAsrMadhhab(it) },
                             onTogglePrayerNotifications = { toolsViewModel.setPrayerNotificationsEnabled(it) },
+                            isAdhanPlaying = isAdhanPlaying,
+                            adhanFeedback = adhanFeedback,
+                            onPickAdhanAudio = { uri -> toolsViewModel.importCustomAdhan(uri, strings) },
+                            onClearAdhanAudio = { toolsViewModel.clearCustomAdhan(strings) },
+                            onStopAdhan = { toolsViewModel.stopAdhanPlayback() },
                             onToggleFavoriteAdhkar = { toolsViewModel.toggleFavoriteAdhkar(it) },
                             onIncrementTasbih = { toolsViewModel.incrementTasbih() },
                             onResetTasbih = { toolsViewModel.resetTasbih() },
                             onSelectTasbihTarget = { toolsViewModel.setTasbihTarget(it) },
                             onSelectTasbihLabel = { toolsViewModel.setTasbihLabel(it) },
-                            onToggleTasbihHaptic = { toolsViewModel.setTasbihHaptic(it) }
+                            onToggleTasbihHaptic = { toolsViewModel.setTasbihHaptic(it) },
+                            locationStatus = locationStatus,
+                            onSearchWorldCities = { query ->
+                                toolsViewModel.searchWorldCitiesOnline(query)
+                            }
                         )
                     }
 
@@ -591,7 +665,12 @@ private fun NuurQuranAppShell(
                             onImportBackup = {
                                 importLauncher.launch(arrayOf("application/json", "text/plain"))
                             },
-                            backupFeedback = backupFeedback
+                            backupFeedback = backupFeedback,
+                            onOpenLocationSettings = {
+                                navController.navigate(AppRoute.Tools(initialTab = 0)) {
+                                    launchSingleTop = true
+                                }
+                            }
                         )
                     }
                 }

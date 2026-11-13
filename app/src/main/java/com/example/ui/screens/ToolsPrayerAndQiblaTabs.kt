@@ -1,15 +1,19 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.SensorManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,22 +31,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -55,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -63,20 +68,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.data.local.UserSettings
 import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
-import com.example.domain.CuratedCities
 import com.example.domain.CuratedCity
 import com.example.domain.PrayerTimesCalculator
-import com.example.localization.AppLanguage
 import com.example.localization.AppStrings
+import com.example.notifications.AdhanPlaybackService
+import com.example.notifications.PrayerReminderScheduler
+import com.example.ui.viewmodel.LocationUiStatus
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PrayerTimesTab(
     settings: UserSettings,
@@ -88,24 +94,30 @@ internal fun PrayerTimesTab(
     onRequestDeviceLocation: () -> Unit,
     onLocationDenied: (String) -> Unit,
     onSelectAsrMadhhab: (AsrMadhhab) -> Unit = {},
-    onTogglePrayerNotifications: (Boolean) -> Unit = {}
+    onTogglePrayerNotifications: (Boolean) -> Unit = {},
+    isAdhanPlaying: Boolean = false,
+    adhanFeedback: String? = null,
+    onPickAdhanAudio: (Uri) -> Unit = {},
+    onClearAdhanAudio: () -> Unit = {},
+    onStopAdhan: () -> Unit = {},
+    locationStatus: LocationUiStatus = LocationUiStatus(),
+    onSearchWorldCities: suspend (String) -> List<CuratedCity> = { emptyList() }
 ) {
     val context = LocalContext.current
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            onRequestDeviceLocation()
-        } else {
-            onLocationDenied(strings.locationPermissionDenied)
-        }
-    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             onTogglePrayerNotifications(true)
+        }
+    }
+
+    val adhanPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            onPickAdhanAudio(uri)
         }
     }
 
@@ -160,17 +172,8 @@ internal fun PrayerTimesTab(
         else -> strings.ishaLabel.substringBefore(" (")
     }
 
-    var cityMenuOpen by remember { mutableStateOf(false) }
-    var methodMenuOpen by remember { mutableStateOf(false) }
-    var madhhabMenuOpen by remember { mutableStateOf(false) }
-    var tzMenuOpen by remember { mutableStateOf(false) }
-
-    val selectedCity = CuratedCities.findById(settings.selectedCityId)
-    val timezones = listOf(
-        "Africa/Mogadishu", "Africa/Djibouti", "Africa/Nairobi", "Africa/Addis_Ababa",
-        "Asia/Riyadh", "Africa/Cairo", "Europe/Istanbul", "Europe/London",
-        "America/Chicago", "America/Toronto", "Asia/Kuala_Lumpur", "UTC"
-    )
+    var showCityPickerSheet by remember { mutableStateOf(false) }
+    val activeLocationName = settings.activeLocationDisplayName()
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -200,44 +203,79 @@ internal fun PrayerTimesTab(
             }
         }
 
-        // Next Prayer Live Countdown Card
+        // Next Prayer Live Countdown Card with 1-tap Location Pill
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "${strings.nextPrayerLabel}: $nextPrayerName",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = countdown.timeHHmm,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${strings.nextPrayerLabel}: $nextPrayerName",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = countdown.timeHHmm,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = strings.nextPrayerIn,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = countdown.formattedCountdown,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = strings.nextPrayerIn,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = countdown.formattedCountdown,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable { showCityPickerSheet = true }
+                            .testTag("prayer_active_location_pill")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = strings.selectCity,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = activeLocationName,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -297,247 +335,229 @@ internal fun PrayerTimesTab(
             }
         }
 
-        // Local Consent-Based Notifications Card
+        // Local Consent-Based Notifications & Adhan Audio Card
         item {
+            val hasCustomFile = remember(settings.customAdhanFileName) {
+                AdhanPlaybackService.customAdhanFile(context).let { it.exists() && it.length() > 0L }
+            }
+            val hasBundledAdhan = remember { AdhanPlaybackService.hasBundledAdhan(context) }
+            val adhanSourceLabel = when {
+                hasCustomFile && !settings.customAdhanFileName.isNullOrBlank() -> settings.customAdhanFileName
+                hasBundledAdhan -> strings.adhanAudioBundled
+                else -> strings.adhanAudioDefault
+            }
+            val canExactAlarms = PrayerReminderScheduler.canScheduleExactAlarms(context)
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(strings.prayerRemindersLabel, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            text = strings.prayerRemindersDesc,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(strings.prayerRemindersLabel, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                text = strings.prayerRemindersDesc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settings.prayerNotificationsEnabled,
+                            onCheckedChange = { enable ->
+                                if (!enable) {
+                                    onTogglePrayerNotifications(false)
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    val granted = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (granted) {
+                                        onTogglePrayerNotifications(true)
+                                    } else {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                } else {
+                                    onTogglePrayerNotifications(true)
+                                }
+                            },
+                            modifier = Modifier.testTag("prayer_notifications_switch")
                         )
                     }
-                    Switch(
-                        checked = settings.prayerNotificationsEnabled,
-                        onCheckedChange = { enable ->
-                            if (!enable) {
-                                onTogglePrayerNotifications(false)
-                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                val granted = ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.POST_NOTIFICATIONS
-                                ) == PackageManager.PERMISSION_GRANTED
-                                if (granted) {
-                                    onTogglePrayerNotifications(true)
-                                } else {
-                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            } else {
-                                onTogglePrayerNotifications(true)
-                            }
-                        },
-                        modifier = Modifier.testTag("prayer_notifications_switch")
-                    )
-                }
-            }
-        }
 
-        // Location, Method, Asr Madhhab, Timezone Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExposedDropdownMenuBox(
-                        expanded = cityMenuOpen,
-                        onExpandedChange = { cityMenuOpen = it }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        OutlinedTextField(
-                            value = if (settings.useCustomGpsCoords) {
-                                "GPS (${"%.2f".format(settings.customLatitude)}, ${"%.2f".format(settings.customLongitude)})"
-                            } else {
-                                selectedCity.name
-                            },
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(strings.selectCity) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = cityMenuOpen) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        Icon(
+                            Icons.Default.AudioFile,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                        ExposedDropdownMenu(
-                            expanded = cityMenuOpen,
-                            onDismissRequest = { cityMenuOpen = false }
-                        ) {
-                            CuratedCities.cities.forEach { city ->
-                                DropdownMenuItem(
-                                    text = { Text("${city.name} (${city.country})") },
-                                    onClick = {
-                                        onSelectCity(city)
-                                        cityMenuOpen = false
-                                    }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = strings.adhanAudioLabel,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = adhanSourceLabel,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (hasCustomFile) {
+                            IconButton(
+                                onClick = onClearAdhanAudio,
+                                modifier = Modifier.testTag("clear_adhan_audio_button")
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = strings.delete
                                 )
                             }
                         }
                     }
 
-                    Text(
-                        text = strings.locationPurposeNote,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            val granted = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (granted) {
-                                onRequestDeviceLocation()
-                            } else {
-                                locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("use_device_location_button")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(strings.useDeviceLocation)
+                        OutlinedButton(
+                            onClick = { adhanPickerLauncher.launch(arrayOf("audio/*")) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("pick_adhan_audio_button")
+                        ) {
+                            Text(
+                                text = strings.adhanPickAudio,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (isAdhanPlaying) {
+                            FilledTonalButton(
+                                onClick = onStopAdhan,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("stop_adhan_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = strings.adhanStopPlay,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
 
-                    locationFeedback?.let { msg ->
+                    adhanFeedback?.let { msg ->
                         Text(
                             text = msg,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
 
-                    ExposedDropdownMenuBox(
-                        expanded = methodMenuOpen,
-                        onExpandedChange = { methodMenuOpen = it }
+                    if (settings.prayerNotificationsEnabled &&
+                        !canExactAlarms &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                     ) {
-                        val methodLabel = when (settings.language) {
-                            AppLanguage.SOMALI -> settings.calculationMethod.nameSo
-                            AppLanguage.ARABIC -> settings.calculationMethod.nameAr
-                            AppLanguage.ENGLISH -> settings.calculationMethod.nameEn
-                        }
-                        OutlinedTextField(
-                            value = methodLabel,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(strings.calculationMethod) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodMenuOpen) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = methodMenuOpen,
-                            onDismissRequest = { methodMenuOpen = false }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
                         ) {
-                            CalculationMethod.entries.forEach { m ->
-                                val label = when (settings.language) {
-                                    AppLanguage.SOMALI -> m.nameSo
-                                    AppLanguage.ARABIC -> m.nameAr
-                                    AppLanguage.ENGLISH -> m.nameEn
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = strings.exactAlarmHint,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        runCatching {
+                                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(intent)
+                                        }
+                                    }
+                                ) {
+                                    Text(strings.exactAlarmButton)
                                 }
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onSelectMethod(m)
-                                        methodMenuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    ExposedDropdownMenuBox(
-                        expanded = madhhabMenuOpen,
-                        onExpandedChange = { madhhabMenuOpen = it }
-                    ) {
-                        val currentMadhhabLabel = if (settings.asrMadhhab == AsrMadhhab.SHAFI) {
-                            strings.asrShafiLabel
-                        } else {
-                            strings.asrHanafiLabel
-                        }
-                        OutlinedTextField(
-                            value = currentMadhhabLabel,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(strings.asrMadhhabLabel) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = madhhabMenuOpen) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                .testTag("asr_madhhab_dropdown")
-                        )
-                        ExposedDropdownMenu(
-                            expanded = madhhabMenuOpen,
-                            onDismissRequest = { madhhabMenuOpen = false }
-                        ) {
-                            listOf(
-                                AsrMadhhab.SHAFI to strings.asrShafiLabel,
-                                AsrMadhhab.HANAFI to strings.asrHanafiLabel
-                            ).forEach { (madhhab, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        onSelectAsrMadhhab(madhhab)
-                                        madhhabMenuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    ExposedDropdownMenuBox(
-                        expanded = tzMenuOpen,
-                        onExpandedChange = { tzMenuOpen = it }
-                    ) {
-                        OutlinedTextField(
-                            value = settings.timezoneId,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(strings.timezoneLabel) },
-                            leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = tzMenuOpen) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = tzMenuOpen,
-                            onDismissRequest = { tzMenuOpen = false }
-                        ) {
-                            timezones.forEach { tz ->
-                                DropdownMenuItem(
-                                    text = { Text(tz) },
-                                    onClick = {
-                                        onSelectTimezone(tz)
-                                        tzMenuOpen = false
-                                    }
-                                )
                             }
                         }
                     }
                 }
             }
         }
+
+        // Upgraded Location, Method, Asr Madhhab, Timezone Card
+        item {
+            LocationAndCalculationCard(
+                settings = settings,
+                strings = strings,
+                locationFeedback = locationFeedback,
+                locationStatus = locationStatus,
+                onSelectCity = onSelectCity,
+                onSelectMethod = onSelectMethod,
+                onSelectAsrMadhhab = onSelectAsrMadhhab,
+                onSelectTimezone = onSelectTimezone,
+                onRequestDeviceLocation = onRequestDeviceLocation,
+                onLocationDenied = onLocationDenied,
+                showCityPickerSheet = false,
+                onToggleCityPickerSheet = { open -> showCityPickerSheet = open },
+                onSearchWorldCities = onSearchWorldCities
+            )
+        }
+    }
+
+    if (showCityPickerSheet) {
+        SearchableCityPickerSheet(
+            selectedCityId = if (settings.useCustomGpsCoords || !settings.customLocationLabel.isNullOrBlank()) null else settings.selectedCityId,
+            strings = strings,
+            onSelectCity = { city ->
+                onSelectCity(city)
+                showCityPickerSheet = false
+            },
+            onSearchWorldCities = onSearchWorldCities,
+            onDismiss = { showCityPickerSheet = false }
+        )
     }
 }
 
@@ -572,7 +592,7 @@ internal fun QiblaTab(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -581,16 +601,41 @@ internal fun QiblaTab(
             style = MaterialTheme.typography.headlineMedium,
             color = primaryColor
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "${strings.qiblaBearingLabel}: ${"%.1f".format(qiblaBearing)}°",
             style = MaterialTheme.typography.titleMedium
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(6.dp))
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = primaryColor,
+                    modifier = Modifier.size(15.dp)
+                )
+                Text(
+                    text = settings.activeLocationDisplayName(),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Box(modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(196.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val radius = size.minDimension / 2f - 12f
+                val radius = size.minDimension / 2f - 10f
                 val center = Offset(size.width / 2f, size.height / 2f)
                 drawCircle(color = surfaceColor, radius = radius, center = center)
                 drawCircle(
@@ -603,24 +648,24 @@ internal fun QiblaTab(
                     drawLine(
                         color = onSurface.copy(alpha = 0.6f),
                         start = Offset(center.x, center.y - radius + 8f),
-                        end = Offset(center.x, center.y - radius + 28f),
+                        end = Offset(center.x, center.y - radius + 24f),
                         strokeWidth = 5f
                     )
                     rotate(qiblaBearing.toFloat(), pivot = center) {
                         val arrow = Path().apply {
-                            moveTo(center.x, center.y - radius + 28f)
-                            lineTo(center.x - 16f, center.y + 18f)
-                            lineTo(center.x + 16f, center.y + 18f)
+                            moveTo(center.x, center.y - radius + 24f)
+                            lineTo(center.x - 14f, center.y + 16f)
+                            lineTo(center.x + 14f, center.y + 16f)
                             close()
                         }
                         drawPath(arrow, color = primaryColor)
                     }
                 }
-                drawCircle(color = primaryColor, radius = 12f, center = center)
+                drawCircle(color = primaryColor, radius = 10f, center = center)
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         if (isAligned) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -630,7 +675,7 @@ internal fun QiblaTab(
                     text = strings.qiblaAligned,
                     style = MaterialTheme.typography.titleMedium,
                     color = primaryColor,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
                 )
             }
         } else if (!hasCompassSensor || deviceAzimuth == null) {
@@ -642,7 +687,7 @@ internal fun QiblaTab(
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = if (isLowAccuracy) {
@@ -656,7 +701,7 @@ internal fun QiblaTab(
                 .testTag("qibla_calibration_card")
         ) {
             Row(
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

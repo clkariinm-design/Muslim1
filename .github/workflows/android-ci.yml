@@ -1,52 +1,197 @@
-name: Android CI
+name: Nuur Qur'an — Android CI & APK Build
 
 on:
   workflow_dispatch:
+    inputs:
+      build_mode:
+        description: "Build type to produce"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - debug-and-release
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   build-and-test:
+    name: Test, Lint & Build APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
-      - name: Setup Gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
+          gradle-version: "9.3.1"
+          cache-read-only: false
 
-      - name: Generate ephemeral Android debug keystore
+      - name: Prepare environment file
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
 
-      - name: Run Lint, Unit/Robolectric Tests, and Debug APK Build
-        run: gradle :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
+      - name: Prepare Debug Keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Decoded project debug.keystore from debug.keystore.base64"
+          else
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "Generated ephemeral debug.keystore"
+          fi
 
-      - name: Upload Debug APK
+      - name: Run Unit & Robolectric Tests
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Run Android Lint
+        run: gradle :app:lintDebug --no-daemon --stacktrace
+
+      - name: Build Debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Package Debug APK
+        run: |
+          mkdir -p build-artifacts
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "Debug APK not found at $APK_PATH"
+            exit 1
+          fi
+          cp "$APK_PATH" build-artifacts/NuurQuran-debug.apk
+          ls -lh build-artifacts/NuurQuran-debug.apk
+          sha256sum build-artifacts/NuurQuran-debug.apk > build-artifacts/NuurQuran-debug.apk.sha256
+
+      - name: Build Signed Release APK (when keystore secrets are configured)
+        if: >-
+          github.event_name != 'pull_request' &&
+          (github.event.inputs.build_mode == 'debug-and-release' || startsWith(github.ref, 'refs/tags/v'))
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "Skipping signed Release APK: KEYSTORE_BASE64 / STORE_PASSWORD / KEY_PASSWORD secrets not set."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > my-upload-key.jks
+          gradle :app:assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk build-artifacts/NuurQuran-release.apk
+          sha256sum build-artifacts/NuurQuran-release.apk > build-artifacts/NuurQuran-release.apk.sha256
+          rm -f my-upload-key.jks
+
+      - name: Upload Test & Lint Reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Muslim1-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: NuurQuran-test-and-lint-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
           retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuurQuran-debug-apk
+          path: |
+            build-artifacts/NuurQuran-debug.apk
+            build-artifacts/NuurQuran-debug.apk.sha256
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Release APK Artifact
+        if: hashFiles('build-artifacts/NuurQuran-release.apk') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuurQuran-release-apk
+          path: |
+            build-artifacts/NuurQuran-release.apk
+            build-artifacts/NuurQuran-release.apk.sha256
+          retention-days: 30
+
+      - name: Write Build Summary
+        if: always()
+        run: |
+          {
+            echo "## Nuur Qur'an Build Summary"
+            echo ""
+            echo "| Item | Details |"
+            echo "| --- | --- |"
+            echo "| Branch / Ref | \`${GITHUB_REF_NAME}\` |"
+            echo "| Commit | \`${GITHUB_SHA::7}\` |"
+            if [ -f build-artifacts/NuurQuran-debug.apk ]; then
+              SIZE=$(du -h build-artifacts/NuurQuran-debug.apk | cut -f1)
+              HASH=$(cut -d' ' -f1 build-artifacts/NuurQuran-debug.apk.sha256)
+              echo "| Debug APK | \`NuurQuran-debug.apk\` (${SIZE}) |"
+              echo "| Debug SHA-256 | \`${HASH}\` |"
+            fi
+            if [ -f build-artifacts/NuurQuran-release.apk ]; then
+              RSIZE=$(du -h build-artifacts/NuurQuran-release.apk | cut -f1)
+              echo "| Release APK | \`NuurQuran-release.apk\` (${RSIZE}) |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Built APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: NuurQuran-*-apk
+          path: release-files
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release-files/*.apk
+            release-files/*.sha256

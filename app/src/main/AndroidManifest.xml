@@ -14,6 +14,11 @@
     <!-- Optional location for Qibla bearing and local Prayer Times (manual city works without permission) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- Local prayer alarms across reboots and exact Adhan scheduling -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:name=".NuurQuranApplication"
         android:allowBackup="true"
@@ -46,9 +51,25 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".notifications.AdhanPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <receiver
             android:name=".notifications.PrayerReminderReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".notifications.PrayerBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

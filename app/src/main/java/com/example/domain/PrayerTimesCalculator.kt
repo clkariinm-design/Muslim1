@@ -60,33 +60,43 @@ data class CuratedCity(
     val country: String,
     val latitude: Double,
     val longitude: Double,
-    val timezoneId: String
+    val timezoneId: String,
+    val region: WorldRegion = WorldRegion.SOMALIA_HORN,
+    val countryCode: String = ""
 )
 
 object CuratedCities {
-    val cities: List<CuratedCity> = listOf(
-        CuratedCity("mogadishu", "Muqdisho / Mogadishu", "Soomaaliya", 2.0469, 45.3182, "Africa/Mogadishu"),
-        CuratedCity("hargeisa", "Hargeysa / Hargeisa", "Somaliland / Soomaaliya", 9.5624, 44.0770, "Africa/Mogadishu"),
-        CuratedCity("garowe", "Garoowe / Garowe", "Soomaaliya", 8.4020, 48.4845, "Africa/Mogadishu"),
-        CuratedCity("bosaso", "Boosaaso / Bosaso", "Soomaaliya", 11.2842, 49.1816, "Africa/Mogadishu"),
-        CuratedCity("kismayo", "Kismaayo / Kismayo", "Soomaaliya", -0.3582, 42.5454, "Africa/Mogadishu"),
-        CuratedCity("djibouti", "Jabuuti / Djibouti", "Djibouti", 11.5721, 43.1456, "Africa/Djibouti"),
-        CuratedCity("nairobi", "Nairobi", "Kenya", -1.2921, 36.8219, "Africa/Nairobi"),
-        CuratedCity("addis", "Addis Ababa", "Ethiopia", 9.0320, 38.7469, "Africa/Addis_Ababa"),
-        CuratedCity("makkah", "Makka al-Mukarrama", "Saudi Arabia", 21.4225, 39.8262, "Asia/Riyadh"),
-        CuratedCity("madinah", "Madiina al-Munawwara", "Saudi Arabia", 24.4672, 39.6112, "Asia/Riyadh"),
-        CuratedCity("riyadh", "Riyadh", "Saudi Arabia", 24.7136, 46.6753, "Asia/Riyadh"),
-        CuratedCity("cairo", "Cairo / Qaahira", "Egypt", 30.0444, 31.2357, "Africa/Cairo"),
-        CuratedCity("istanbul", "Istanbul", "Türkiye", 41.0082, 28.9784, "Europe/Istanbul"),
-        CuratedCity("london", "London", "United Kingdom", 51.5072, -0.1276, "Europe/London"),
-        CuratedCity("minneapolis", "Minneapolis", "USA", 44.9778, -93.2650, "America/Chicago"),
-        CuratedCity("toronto", "Toronto", "Canada", 43.6532, -79.3832, "America/Toronto"),
-        CuratedCity("kuala_lumpur", "Kuala Lumpur", "Malaysia", 3.1390, 101.6869, "Asia/Kuala_Lumpur")
-    )
+    val cities: List<CuratedCity>
+        get() = WorldCitiesCatalog.cities
 
-    val defaultCity: CuratedCity = cities.first()
+    val defaultCity: CuratedCity
+        get() = cities.first()
 
     fun findById(id: String): CuratedCity = cities.firstOrNull { it.id == id } ?: defaultCity
+
+    fun findNearestCity(latitude: Double, longitude: Double, maxDistanceKm: Double = 75.0): CuratedCity? {
+        var bestCity: CuratedCity? = null
+        var bestDist = Double.MAX_VALUE
+        for (city in cities) {
+            val dist = distanceKm(latitude, longitude, city.latitude, city.longitude)
+            if (dist <= maxDistanceKm && dist < bestDist) {
+                bestDist = dist
+                bestCity = city
+            }
+        }
+        return bestCity
+    }
+
+    fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = sin(dLat / 2.0) * sin(dLat / 2.0) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+            sin(dLon / 2.0) * sin(dLon / 2.0)
+        val c = 2.0 * atan2(kotlin.math.sqrt(a), kotlin.math.sqrt((1.0 - a).coerceAtLeast(0.0)))
+        return r * c
+    }
 }
 
 data class DailyPrayerTimes(
@@ -104,6 +114,13 @@ data class NextPrayerCountdown(
     val timeHHmm: String,
     val remainingMillis: Long,
     val formattedCountdown: String
+)
+
+data class NextObligatoryPrayer(
+    val prayerIndex: Int, // 0=Fajr, 2=Dhuhr, 3=Asr, 4=Maghrib, 5=Isha (skips Sunrise)
+    val timeHHmm: String,
+    val triggerAtMillis: Long,
+    val remainingMillis: Long
 )
 
 data class HijriDateDisplay(
@@ -235,6 +252,134 @@ object PrayerTimesCalculator {
             remainingMillis = diffSec * 1000L,
             formattedCountdown = formatCountdown(diffSec)
         )
+    }
+
+    /**
+     * Finds the next obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha — skipping Sunrise)
+     * strictly at least [minDelayMillis] in the future, returning its exact epochMillis trigger time.
+     */
+    fun calculateNextObligatoryPrayer(
+        latitude: Double,
+        longitude: Double,
+        timezoneId: String,
+        method: CalculationMethod,
+        asrMadhhab: AsrMadhhab = AsrMadhhab.SHAFI,
+        epochMillis: Long = System.currentTimeMillis(),
+        minDelayMillis: Long = 5_000L
+    ): NextObligatoryPrayer {
+        val tz = TimeZone.getTimeZone(timezoneId)
+        val minTriggerMillis = epochMillis + minDelayMillis.coerceAtLeast(1_000L)
+
+        // Check today (dayOffset = 0) and tomorrow (dayOffset = 1)
+        for (dayOffset in 0..1) {
+            val dayBase = Calendar.getInstance(tz).apply {
+                timeInMillis = epochMillis
+                add(Calendar.DAY_OF_YEAR, dayOffset)
+            }
+            val times = calculatePrayerTimes(
+                latitude = latitude,
+                longitude = longitude,
+                timezoneId = timezoneId,
+                method = method,
+                epochMillis = dayBase.timeInMillis,
+                asrMadhhab = asrMadhhab
+            )
+            val obligatory = listOf(
+                0 to times.fajr,
+                2 to times.dhuhr,
+                3 to times.asr,
+                4 to times.maghrib,
+                5 to times.isha
+            )
+            for ((idx, hhmm) in obligatory) {
+                val triggerMillis = parseHHmmEpochMillis(dayBase, hhmm) ?: continue
+                if (triggerMillis >= minTriggerMillis) {
+                    return NextObligatoryPrayer(
+                        prayerIndex = idx,
+                        timeHHmm = hhmm,
+                        triggerAtMillis = triggerMillis,
+                        remainingMillis = (triggerMillis - epochMillis).coerceAtLeast(0L)
+                    )
+                }
+            }
+        }
+
+        // Defensive fallback: 60s from now
+        return NextObligatoryPrayer(
+            prayerIndex = 0,
+            timeHHmm = "--:--",
+            triggerAtMillis = minTriggerMillis,
+            remainingMillis = minDelayMillis
+        )
+    }
+
+    /**
+     * Returns the next upcoming occurrence (at least [minDelayMillis] in the future)
+     * for each of the 5 obligatory prayers: Fajr (0), Dhuhr (2), Asr (3), Maghrib (4), Isha (5).
+     */
+    fun calculateAllUpcomingObligatoryPrayers(
+        latitude: Double,
+        longitude: Double,
+        timezoneId: String,
+        method: CalculationMethod,
+        asrMadhhab: AsrMadhhab = AsrMadhhab.SHAFI,
+        epochMillis: Long = System.currentTimeMillis(),
+        minDelayMillis: Long = 5_000L
+    ): List<NextObligatoryPrayer> {
+        val tz = TimeZone.getTimeZone(timezoneId)
+        val minTriggerMillis = epochMillis + minDelayMillis.coerceAtLeast(1_000L)
+        val obligatoryIndices = listOf(0, 2, 3, 4, 5)
+        val found = linkedMapOf<Int, NextObligatoryPrayer>()
+
+        for (dayOffset in 0..1) {
+            val dayBase = Calendar.getInstance(tz).apply {
+                timeInMillis = epochMillis
+                add(Calendar.DAY_OF_YEAR, dayOffset)
+            }
+            val times = calculatePrayerTimes(
+                latitude = latitude,
+                longitude = longitude,
+                timezoneId = timezoneId,
+                method = method,
+                epochMillis = dayBase.timeInMillis,
+                asrMadhhab = asrMadhhab
+            )
+            val entries = listOf(
+                0 to times.fajr,
+                2 to times.dhuhr,
+                3 to times.asr,
+                4 to times.maghrib,
+                5 to times.isha
+            )
+            for ((idx, hhmm) in entries) {
+                if (found.containsKey(idx)) continue
+                val triggerMillis = parseHHmmEpochMillis(dayBase, hhmm) ?: continue
+                if (triggerMillis >= minTriggerMillis) {
+                    found[idx] = NextObligatoryPrayer(
+                        prayerIndex = idx,
+                        timeHHmm = hhmm,
+                        triggerAtMillis = triggerMillis,
+                        remainingMillis = (triggerMillis - epochMillis).coerceAtLeast(0L)
+                    )
+                }
+            }
+            if (found.size == obligatoryIndices.size) break
+        }
+
+        return found.values.sortedBy { it.triggerAtMillis }
+    }
+
+    private fun parseHHmmEpochMillis(dayBase: Calendar, hhmm: String): Long? {
+        val parts = hhmm.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        return (dayBase.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, h)
+            set(Calendar.MINUTE, m)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
     private fun parseHHmmSeconds(hhmm: String): Long? {

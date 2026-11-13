@@ -53,10 +53,14 @@ data class UserSettings(
     val useCustomGpsCoords: Boolean = false,
     val customLatitude: Double = 2.0469,
     val customLongitude: Double = 45.3182,
+    val customLocationLabel: String? = null,
+    val hasPromptedLocation: Boolean = false,
+    val hasExplicitManualCity: Boolean = false,
     val timezoneId: String = "Africa/Mogadishu",
     val calculationMethod: CalculationMethod = CalculationMethod.MWL,
     val asrMadhhab: AsrMadhhab = AsrMadhhab.SHAFI,
     val prayerNotificationsEnabled: Boolean = false,
+    val customAdhanFileName: String? = null,
     val dailyAyahGoal: Int = 20,
     val todayEpochDay: Long = 0L,
     val todayAyahsRead: Int = 0,
@@ -69,7 +73,18 @@ data class UserSettings(
     val tasbihHapticEnabled: Boolean = true,
     val favoriteAdhkarOrders: Set<Int> = emptySet(),
     val completedAdhkarToday: Set<Int> = emptySet()
-)
+) {
+    fun activeLocationDisplayName(): String {
+        val label = customLocationLabel?.trim()
+        if (!label.isNullOrEmpty()) return label
+        if (useCustomGpsCoords) {
+            val nearest = CuratedCities.findNearestCity(customLatitude, customLongitude)
+                ?: CuratedCities.findNearestCity(customLatitude, customLongitude, maxDistanceKm = Double.MAX_VALUE)
+            if (nearest != null) return nearest.name
+        }
+        return CuratedCities.findById(selectedCityId).name
+    }
+}
 
 data class DailyStreakSnapshot(
     val todayEpochDay: Long,
@@ -100,10 +115,14 @@ class SettingsRepository(private val context: Context) {
         val USE_CUSTOM_GPS = booleanPreferencesKey("use_custom_gps")
         val CUSTOM_LAT = doublePreferencesKey("custom_lat")
         val CUSTOM_LON = doublePreferencesKey("custom_lon")
+        val CUSTOM_LOCATION_LABEL = stringPreferencesKey("custom_location_label")
+        val LOCATION_PERMISSION_PROMPTED = booleanPreferencesKey("location_permission_prompted")
+        val EXPLICIT_MANUAL_CITY = booleanPreferencesKey("explicit_manual_city")
         val TIMEZONE_ID = stringPreferencesKey("timezone_id")
         val CALC_METHOD = stringPreferencesKey("calc_method")
         val ASR_MADHHAB = stringPreferencesKey("asr_madhhab")
         val PRAYER_NOTIFICATIONS = booleanPreferencesKey("prayer_notifications")
+        val CUSTOM_ADHAN_FILE_NAME = stringPreferencesKey("custom_adhan_file_name")
         val DAILY_AYAH_GOAL = intPreferencesKey("daily_ayah_goal")
         val TODAY_EPOCH_DAY = longPreferencesKey("today_epoch_day")
         val TODAY_AYAHS_READ = intPreferencesKey("today_ayahs_read")
@@ -147,12 +166,16 @@ class SettingsRepository(private val context: Context) {
             useCustomGpsCoords = prefs[Keys.USE_CUSTOM_GPS] ?: false,
             customLatitude = prefs[Keys.CUSTOM_LAT] ?: defaultCity.latitude,
             customLongitude = prefs[Keys.CUSTOM_LON] ?: defaultCity.longitude,
+            customLocationLabel = prefs[Keys.CUSTOM_LOCATION_LABEL],
+            hasPromptedLocation = prefs[Keys.LOCATION_PERMISSION_PROMPTED] ?: false,
+            hasExplicitManualCity = prefs[Keys.EXPLICIT_MANUAL_CITY] ?: false,
             timezoneId = prefs[Keys.TIMEZONE_ID] ?: defaultCity.timezoneId,
             calculationMethod = CalculationMethod.fromId(
                 prefs[Keys.CALC_METHOD] ?: CalculationMethod.MWL.id
             ),
             asrMadhhab = AsrMadhhab.fromId(prefs[Keys.ASR_MADHHAB] ?: AsrMadhhab.SHAFI.id),
             prayerNotificationsEnabled = prefs[Keys.PRAYER_NOTIFICATIONS] ?: false,
+            customAdhanFileName = prefs[Keys.CUSTOM_ADHAN_FILE_NAME],
             dailyAyahGoal = (prefs[Keys.DAILY_AYAH_GOAL] ?: 20).coerceIn(5, 200),
             todayEpochDay = currentDay,
             todayAyahsRead = if (isSameDay) (prefs[Keys.TODAY_AYAHS_READ] ?: 0) else 0,
@@ -264,19 +287,53 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.CITY_ID] = cityId
             prefs[Keys.USE_CUSTOM_GPS] = false
+            prefs[Keys.EXPLICIT_MANUAL_CITY] = true
             prefs[Keys.CUSTOM_LAT] = latitude
             prefs[Keys.CUSTOM_LON] = longitude
+            prefs.remove(Keys.CUSTOM_LOCATION_LABEL)
             prefs[Keys.TIMEZONE_ID] = timezoneId
         }
     }
 
-    suspend fun setDeviceCoordinates(latitude: Double, longitude: Double, timezoneId: String) {
+    suspend fun setManualWorldPlace(
+        placeLabel: String,
+        latitude: Double,
+        longitude: Double,
+        timezoneId: String
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.USE_CUSTOM_GPS] = false
+            prefs[Keys.EXPLICIT_MANUAL_CITY] = true
+            prefs[Keys.CUSTOM_LAT] = latitude
+            prefs[Keys.CUSTOM_LON] = longitude
+            prefs[Keys.CUSTOM_LOCATION_LABEL] = placeLabel.trim()
+            prefs[Keys.TIMEZONE_ID] = timezoneId
+        }
+    }
+
+    suspend fun setDeviceCoordinates(
+        latitude: Double,
+        longitude: Double,
+        timezoneId: String,
+        locationLabel: String? = null
+    ) {
         context.dataStore.edit { prefs ->
             prefs[Keys.USE_CUSTOM_GPS] = true
+            prefs[Keys.EXPLICIT_MANUAL_CITY] = false
             prefs[Keys.CUSTOM_LAT] = latitude
             prefs[Keys.CUSTOM_LON] = longitude
             prefs[Keys.TIMEZONE_ID] = timezoneId
+            val cleanLabel = locationLabel?.trim()
+            if (cleanLabel.isNullOrEmpty()) {
+                prefs.remove(Keys.CUSTOM_LOCATION_LABEL)
+            } else {
+                prefs[Keys.CUSTOM_LOCATION_LABEL] = cleanLabel
+            }
         }
+    }
+
+    suspend fun markLocationPermissionPrompted() {
+        context.dataStore.edit { it[Keys.LOCATION_PERMISSION_PROMPTED] = true }
     }
 
     suspend fun setTimezone(timezoneId: String) {
@@ -293,6 +350,16 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setPrayerNotificationsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.PRAYER_NOTIFICATIONS] = enabled }
+    }
+
+    suspend fun setCustomAdhanFileName(fileName: String?) {
+        context.dataStore.edit { prefs ->
+            if (fileName.isNullOrBlank()) {
+                prefs.remove(Keys.CUSTOM_ADHAN_FILE_NAME)
+            } else {
+                prefs[Keys.CUSTOM_ADHAN_FILE_NAME] = fileName.trim()
+            }
+        }
     }
 
     suspend fun incrementTasbih() {

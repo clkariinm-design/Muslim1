@@ -244,6 +244,10 @@ class NuurV3ComprehensiveTest {
             assertEquals(1.5f, manager.state.value.playbackSpeed, 0.01f)
             manager.cancelDownload()
             assertNull(manager.state.value.downloadingSurahNumber)
+            assertTrue(
+                "Bundled res/raw/adhan audio must be present",
+                com.example.notifications.AdhanPlaybackService.hasBundledAdhan(context)
+            )
         } finally {
             db.close()
         }
