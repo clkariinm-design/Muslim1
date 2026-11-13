@@ -1,4 +1,4 @@
-package com.example.audio
+package com.nuur.muslim.audio
 
 import android.content.ComponentName
 import android.content.Context
@@ -11,12 +11,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.example.data.local.AudioDownloadDao
-import com.example.data.local.AudioRepeatMode
-import com.example.data.local.AyahEntity
-import com.example.data.local.DownloadedAudioEntity
-import com.example.data.local.SurahEntity
-import com.example.domain.RecitersCatalog
+import com.nuur.muslim.data.local.AudioDownloadDao
+import com.nuur.muslim.data.local.AudioRepeatMode
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.DownloadedAudioEntity
+import com.nuur.muslim.data.local.SurahEntity
+import com.nuur.muslim.domain.RecitersCatalog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
