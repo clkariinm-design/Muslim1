@@ -1,4 +1,4 @@
-package com.example.ui.components
+package com.nuur.muslim.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -47,10 +47,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.audio.PlaybackUiState
-import com.example.data.local.AudioRepeatMode
-import com.example.domain.RecitersCatalog
-import com.example.localization.AppStrings
+import com.nuur.muslim.audio.PlaybackUiState
+import com.nuur.muslim.data.local.AudioRepeatMode
+import com.nuur.muslim.domain.RecitersCatalog
+import com.nuur.muslim.localization.AppStrings
 
 @Composable
 fun IslamicNumberMedallion(
