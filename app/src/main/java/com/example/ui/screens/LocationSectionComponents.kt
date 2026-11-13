@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import android.Manifest
 import android.content.Intent
@@ -77,16 +77,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.data.local.UserSettings
-import com.example.domain.AsrMadhhab
-import com.example.domain.CalculationMethod
-import com.example.domain.CuratedCities
-import com.example.domain.CuratedCity
-import com.example.domain.PrayerTimesCalculator
-import com.example.domain.WorldRegion
-import com.example.localization.AppLanguage
-import com.example.localization.AppStrings
-import com.example.ui.viewmodel.LocationUiStatus
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.AsrMadhhab
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.CuratedCities
+import com.nuur.muslim.domain.CuratedCity
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.domain.WorldRegion
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.viewmodel.LocationUiStatus
 import kotlinx.coroutines.delay
 import java.util.TimeZone
 
