@@ -1,4 +1,4 @@
-package com.example
+package com.nuur.muslim
 
 import android.content.Context
 import android.hardware.SensorManager
@@ -19,29 +19,29 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.example.audio.AudioPlaybackManager
-import com.example.audio.PlaybackUiState
-import com.example.data.backup.BackupManager
-import com.example.data.local.BookmarkEntity
-import com.example.data.local.NoteEntity
-import com.example.data.local.QuranDatabase
-import com.example.data.local.ReadingPlanEntity
-import com.example.data.local.SettingsRepository
-import com.example.data.local.SurahEntity
-import com.example.data.local.UserSettings
-import com.example.domain.AsrMadhhab
-import com.example.domain.CalculationMethod
-import com.example.domain.PrayerTimesCalculator
-import com.example.localization.AppLanguage
-import com.example.localization.stringsFor
-import com.example.ui.components.FullAudioPlayerSheet
-import com.example.ui.screens.HomeScreen
-import com.example.ui.screens.SettingsScreen
-import com.example.ui.screens.SurahListScreen
-import com.example.ui.screens.ToolsScreen
-import com.example.ui.theme.AppThemeMode
-import com.example.ui.theme.NuurQuranTheme
-import com.example.ui.theme.ReadingTheme
+import com.nuur.muslim.audio.AudioPlaybackManager
+import com.nuur.muslim.audio.PlaybackUiState
+import com.nuur.muslim.data.backup.BackupManager
+import com.nuur.muslim.data.local.BookmarkEntity
+import com.nuur.muslim.data.local.NoteEntity
+import com.nuur.muslim.data.local.QuranDatabase
+import com.nuur.muslim.data.local.ReadingPlanEntity
+import com.nuur.muslim.data.local.SettingsRepository
+import com.nuur.muslim.data.local.SurahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.AsrMadhhab
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.stringsFor
+import com.nuur.muslim.ui.components.FullAudioPlayerSheet
+import com.nuur.muslim.ui.screens.HomeScreen
+import com.nuur.muslim.ui.screens.SettingsScreen
+import com.nuur.muslim.ui.screens.SurahListScreen
+import com.nuur.muslim.ui.screens.ToolsScreen
+import com.nuur.muslim.ui.theme.AppThemeMode
+import com.nuur.muslim.ui.theme.NuurQuranTheme
+import com.nuur.muslim.ui.theme.ReadingTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -246,7 +246,7 @@ class NuurV3ComprehensiveTest {
             assertNull(manager.state.value.downloadingSurahNumber)
             assertTrue(
                 "Bundled res/raw/adhan audio must be present",
-                com.example.notifications.AdhanPlaybackService.hasBundledAdhan(context)
+                com.nuur.muslim.notifications.AdhanPlaybackService.hasBundledAdhan(context)
             )
         } finally {
             db.close()
@@ -308,8 +308,8 @@ class NuurV3ComprehensiveTest {
     fun `surah list screen switches between Surah Juz and Hizb browsing modes`() {
         val strings = stringsFor(AppLanguage.ENGLISH)
         val surahs = listOf(SurahEntity(1, "سُورَةُ ٱلْفَاتِحَةِ", "Al-Faatiha", "The Opening", "Meccan", 7))
-        val juzList = listOf(com.example.data.local.JuzIndexEntry(1, 1, 1, 1, "Al-Faatiha", "الفاتحة", 148))
-        val hizbList = listOf(com.example.data.local.HizbIndexEntry(1, 1, 1, 1, "Al-Faatiha", "الفاتحة", 74))
+        val juzList = listOf(com.nuur.muslim.data.local.JuzIndexEntry(1, 1, 1, 1, "Al-Faatiha", "الفاتحة", 148))
+        val hizbList = listOf(com.nuur.muslim.data.local.HizbIndexEntry(1, 1, 1, 1, "Al-Faatiha", "الفاتحة", 74))
 
         composeRule.setContent {
             NuurQuranTheme(themeMode = AppThemeMode.DARK) {
