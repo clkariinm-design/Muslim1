@@ -1,4 +1,4 @@
-package com.example.data.local
+package com.nuur.muslim.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -12,12 +12,12 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.domain.AsrMadhhab
-import com.example.domain.CalculationMethod
-import com.example.domain.CuratedCities
-import com.example.localization.AppLanguage
-import com.example.ui.theme.AppThemeMode
-import com.example.ui.theme.ReadingTheme
+import com.nuur.muslim.domain.AsrMadhhab
+import com.nuur.muslim.domain.CalculationMethod
+import com.nuur.muslim.domain.CuratedCities
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.ui.theme.AppThemeMode
+import com.nuur.muslim.ui.theme.ReadingTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
