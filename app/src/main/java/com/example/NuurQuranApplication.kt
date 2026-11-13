@@ -1,12 +1,12 @@
-package com.example
+package com.nuur.muslim
 
 import android.app.Application
-import com.example.audio.AudioPlaybackManager
-import com.example.data.local.QuranDatabase
-import com.example.data.local.SettingsRepository
-import com.example.data.repository.AdhkarRepository
-import com.example.data.repository.QuranRepository
-import com.example.notifications.PrayerReminderScheduler
+import com.nuur.muslim.audio.AudioPlaybackManager
+import com.nuur.muslim.data.local.QuranDatabase
+import com.nuur.muslim.data.local.SettingsRepository
+import com.nuur.muslim.data.repository.AdhkarRepository
+import com.nuur.muslim.data.repository.QuranRepository
+import com.nuur.muslim.notifications.PrayerReminderScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
