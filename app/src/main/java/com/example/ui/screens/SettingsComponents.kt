@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -51,12 +51,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.UserSettings
-import com.example.localization.AppStrings
-import com.example.ui.theme.AmiriFontFamily
-import com.example.ui.theme.NuurElevation
-import com.example.ui.theme.ReadingTheme
-import com.example.ui.theme.readerPaletteFor
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.theme.AmiriFontFamily
+import com.nuur.muslim.ui.theme.NuurElevation
+import com.nuur.muslim.ui.theme.ReadingTheme
+import com.nuur.muslim.ui.theme.readerPaletteFor
 
 @Composable
 internal fun SettingsSectionCard(
