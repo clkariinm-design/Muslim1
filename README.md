@@ -33,3 +33,12 @@ gradle :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
 
 - **Debug APK Output:** `app/build/outputs/apk/debug/app-debug.apk`
 - **Release Builds:** Release builds require a local upload keystore (`my-upload-key.jks` or `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD`) and enabling `isMinifyEnabled = true` in `app/build.gradle.kts` if code shrinking is desired prior to Play Store release.
+
+
+## Legal & Google Play Release Documents
+- [Proprietary software notice](LICENSE) — applies only to original project material; third-party content remains under its own licence.
+- [Privacy Policy draft](PRIVACY_POLICY.md) — must be completed, audited, and hosted at a public HTTPS URL before release.
+- [Third-party notices](THIRD_PARTY_NOTICES.md) — source and licence verification checklist for Qur’an datasets, translations, tafsir, adhkar, audio, and dependencies.
+- [Google Play release checklist](PLAY_STORE_RELEASE_CHECKLIST.md) — privacy, signing, testing, store listing, and release tasks.
+
+**Release warning:** These documents are preparation drafts, not legal certification or proof of compliance. Replace all placeholders and verify actual shipped-app behavior and all content licences before publishing or selling the app.
