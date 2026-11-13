@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -42,13 +42,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.AdhkarItem
-import com.example.data.local.AyahEntity
-import com.example.data.local.UserSettings
-import com.example.domain.PrayerTimesCalculator
-import com.example.localization.AppLanguage
-import com.example.localization.AppStrings
-import com.example.ui.theme.AmiriFontFamily
+import com.nuur.muslim.data.local.AdhkarItem
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.theme.AmiriFontFamily
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
