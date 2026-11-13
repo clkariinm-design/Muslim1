@@ -1,4 +1,4 @@
-package com.example.notifications
+package com.nuur.muslim.notifications
 
 import android.app.AlarmManager
 import android.app.NotificationChannel
@@ -9,13 +9,13 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.example.MainActivity
-import com.example.R
-import com.example.data.local.SettingsRepository
-import com.example.data.local.UserSettings
-import com.example.domain.PrayerTimesCalculator
-import com.example.localization.AppLanguage
-import com.example.localization.stringsFor
+import com.nuur.muslim.MainActivity
+import com.nuur.muslim.R
+import com.nuur.muslim.data.local.SettingsRepository
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.PrayerTimesCalculator
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.stringsFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
