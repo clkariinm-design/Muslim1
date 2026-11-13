@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -58,10 +58,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.UserSettings
-import com.example.localization.AppStrings
-import com.example.ui.theme.AmiriFontFamily
-import com.example.ui.theme.NuurMotion
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.theme.AmiriFontFamily
+import com.nuur.muslim.ui.theme.NuurMotion
 
 private val presetDhikrList = listOf(
     "سُبْحَانَ ٱللَّهِ",
