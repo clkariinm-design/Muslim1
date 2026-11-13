@@ -1,12 +1,15 @@
 package com.example.data.repository
 
 import android.content.Context
+import androidx.core.text.HtmlCompat
 import com.example.data.local.AudioDownloadDao
 import com.example.data.local.AyahEntity
 import com.example.data.local.BookmarkEntity
 import com.example.data.local.BookmarkWithAyah
 import com.example.data.local.CachedTafsirEntity
 import com.example.data.local.DataManifest
+import com.example.data.local.HizbIndexEntry
+import com.example.data.local.JuzIndexEntry
 import com.example.data.local.NoteEntity
 import com.example.data.local.NoteWithAyah
 import com.example.data.local.QuranDao
@@ -22,6 +25,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 data class SearchResults(
@@ -64,6 +69,10 @@ class QuranRepository(
         withContext(Dispatchers.IO) { quranDao.getAyahByGlobalNumber(globalNumber) }
 
     fun observeQuranicDuas(): Flow<List<AyahEntity>> = quranDao.observeQuranicDuas()
+
+    fun observeJuzEntries(): Flow<List<JuzIndexEntry>> = quranDao.observeJuzEntries()
+
+    fun observeHizbEntries(): Flow<List<HizbIndexEntry>> = quranDao.observeHizbEntries()
 
     fun observeBookmarkedGlobalNumbers(): Flow<List<Int>> = studyDao.observeBookmarkedGlobalNumbers()
 
@@ -203,13 +212,7 @@ class QuranRepository(
                     val body = resp.body?.string() ?: error("Empty response")
                     val root = JSONObject(body)
                     val rawHtml = root.getJSONObject("tafsir").getString("text")
-                    val cleanText = rawHtml
-                        .replace(Regex("<[^>]+>"), " ")
-                        .replace("&quot;", "\"")
-                        .replace("&amp;", "&")
-                        .replace("&apos;", "'")
-                        .replace(Regex("\\s+"), " ")
-                        .trim()
+                    val cleanText = cleanTafsirHtml(rawHtml)
                     tafsirDao.insertTafsir(
                         CachedTafsirEntity(
                             surahNumber = surahNumber,
@@ -221,10 +224,24 @@ class QuranRepository(
                     )
                     cleanText
                 }
+            }.recoverCatching { err ->
+                when (err) {
+                    is UnknownHostException -> throw IllegalStateException("Offline: DNS unavailable", err)
+                    is SocketTimeoutException -> throw IllegalStateException("Network timeout", err)
+                    else -> throw err
+                }
             }
         }
 
     companion object {
+        internal fun cleanTafsirHtml(rawHtml: String): String {
+            return HtmlCompat.fromHtml(rawHtml, HtmlCompat.FROM_HTML_MODE_COMPACT)
+                .toString()
+                .replace('\u00A0', ' ')
+                .replace(Regex("\\s+"), " ")
+                .trim()
+        }
+
         fun normalizeArabicForSearch(input: String): String {
             return input
                 .replace(Regex("[\\u0610-\\u061A\\u064B-\\u065F\\u0670\\u06D6-\\u06ED\\u0640]"), "")

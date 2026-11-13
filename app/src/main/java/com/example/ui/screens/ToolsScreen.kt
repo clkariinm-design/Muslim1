@@ -1,11 +1,12 @@
 package com.example.ui.screens
 
+import android.hardware.SensorManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.example.data.local.AdhkarItem
 import com.example.data.local.AyahEntity
 import com.example.data.local.UserSettings
+import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
 import com.example.domain.CuratedCity
 import com.example.localization.AppStrings
@@ -44,13 +46,23 @@ fun ToolsScreen(
     onStartCompass: () -> Unit,
     onStopCompass: () -> Unit,
     onIncrementDhikr: (Int, Int) -> Unit,
-    onOpenReader: (Int, Int) -> Unit
+    onOpenReader: (Int, Int) -> Unit,
+    compassAccuracy: Int = SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM,
+    onSelectAsrMadhhab: (AsrMadhhab) -> Unit = {},
+    onTogglePrayerNotifications: (Boolean) -> Unit = {},
+    onToggleFavoriteAdhkar: (Int) -> Unit = {},
+    onIncrementTasbih: () -> Unit = {},
+    onResetTasbih: () -> Unit = {},
+    onSelectTasbihTarget: (Int) -> Unit = {},
+    onSelectTasbihLabel: (String) -> Unit = {},
+    onToggleTasbihHaptic: (Boolean) -> Unit = {}
 ) {
-    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 3)) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     val tabs = listOf(
         strings.openPrayerTimes,
         strings.openQibla,
         strings.openAdhkar,
+        strings.openTasbih,
         strings.openDuas
     )
 
@@ -65,7 +77,10 @@ fun ToolsScreen(
                 .fillMaxSize()
                 .widthIn(max = 760.dp)
         ) {
-            TabRow(selectedTabIndex = selectedTab) {
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = 12.dp
+            ) {
                 tabs.forEachIndexed { idx, label ->
                     Tab(
                         selected = selectedTab == idx,
@@ -85,22 +100,35 @@ fun ToolsScreen(
                     onSelectMethod = onSelectMethod,
                     onSelectTimezone = onSelectTimezone,
                     onRequestDeviceLocation = onRequestDeviceLocation,
-                    onLocationDenied = onLocationDenied
+                    onLocationDenied = onLocationDenied,
+                    onSelectAsrMadhhab = onSelectAsrMadhhab,
+                    onTogglePrayerNotifications = onTogglePrayerNotifications
                 )
                 1 -> QiblaTab(
                     settings = settings,
                     strings = strings,
                     deviceAzimuth = deviceAzimuth,
-                    hasCompassSensor = hasCompassSensor
+                    hasCompassSensor = hasCompassSensor,
+                    compassAccuracy = compassAccuracy
                 )
                 2 -> AdhkarAndHijriTab(
                     settings = settings,
                     strings = strings,
                     adhkarList = adhkarList,
                     adhkarCounters = adhkarCounters,
-                    onIncrementDhikr = onIncrementDhikr
+                    onIncrementDhikr = onIncrementDhikr,
+                    onToggleFavoriteAdhkar = onToggleFavoriteAdhkar
                 )
-                3 -> QuranicDuasTab(
+                3 -> TasbihTab(
+                    settings = settings,
+                    strings = strings,
+                    onIncrement = onIncrementTasbih,
+                    onReset = onResetTasbih,
+                    onSelectTarget = onSelectTasbihTarget,
+                    onSelectLabel = onSelectTasbihLabel,
+                    onToggleHaptic = onToggleTasbihHaptic
+                )
+                4 -> QuranicDuasTab(
                     strings = strings,
                     duas = quranicDuas,
                     onOpenReader = onOpenReader

@@ -39,6 +39,21 @@ enum class CalculationMethod(
     }
 }
 
+enum class AsrMadhhab(
+    val id: String,
+    val shadowFactor: Double,
+    val nameSo: String,
+    val nameAr: String,
+    val nameEn: String
+) {
+    SHAFI("shafi", 1.0, "Shaafici / Jumhuur (1x)", "الشافعي / الجمهور", "Shafi'i / Standard (1x)"),
+    HANAFI("hanafi", 2.0, "Xanafi (2x)", "الحنفي", "Hanafi (2x)");
+
+    companion object {
+        fun fromId(id: String): AsrMadhhab = entries.firstOrNull { it.id == id } ?: SHAFI
+    }
+}
+
 data class CuratedCity(
     val id: String,
     val name: String,
@@ -82,6 +97,13 @@ data class DailyPrayerTimes(
     val maghrib: String,
     val isha: String,
     val nextPrayerIndex: Int // 0=Fajr..5=Isha
+)
+
+data class NextPrayerCountdown(
+    val prayerIndex: Int,
+    val timeHHmm: String,
+    val remainingMillis: Long,
+    val formattedCountdown: String
 )
 
 data class HijriDateDisplay(
@@ -131,7 +153,8 @@ object PrayerTimesCalculator {
         longitude: Double,
         timezoneId: String,
         method: CalculationMethod,
-        epochMillis: Long = System.currentTimeMillis()
+        epochMillis: Long = System.currentTimeMillis(),
+        asrMadhhab: AsrMadhhab = AsrMadhhab.SHAFI
     ): DailyPrayerTimes {
         val tz = TimeZone.getTimeZone(timezoneId)
         val cal = Calendar.getInstance(tz).apply { timeInMillis = epochMillis }
@@ -139,7 +162,7 @@ object PrayerTimesCalculator {
         val month = cal.get(Calendar.MONTH) + 1
         val day = cal.get(Calendar.DAY_OF_MONTH)
         val tzHours = tz.getOffset(epochMillis) / 3_600_000.0
-        val currentHour = cal.get(Calendar.HOUR_OF_DAY) + cal.get(Calendar.MINUTE) / 60.0
+        val currentHour = cal.get(Calendar.HOUR_OF_DAY) + cal.get(Calendar.MINUTE) / 60.0 + cal.get(Calendar.SECOND) / 3600.0
 
         val jd = julianDate(year, month, day) - longitude / (15.0 * 24.0)
         val (declination, eqTime) = sunPosition(jd + 0.5)
@@ -148,7 +171,7 @@ object PrayerTimesCalculator {
         val sunrise = dhuhr - hourAngle(0.833, latitude, declination)
         val maghrib = dhuhr + hourAngle(0.833, latitude, declination)
         val fajr = dhuhr - hourAngle(method.fajrAngle, latitude, declination)
-        val asr = dhuhr + asrHourAngle(1.0, latitude, declination) // Shafi/Jumhoor shadow = 1x
+        val asr = dhuhr + asrHourAngle(asrMadhhab.shadowFactor, latitude, declination)
         val isha = if (method.ishaMinutesAfterMaghrib != null) {
             maghrib + method.ishaMinutesAfterMaghrib / 60.0
         } else {
@@ -167,6 +190,67 @@ object PrayerTimesCalculator {
             isha = formatHour(isha),
             nextPrayerIndex = nextIdx
         )
+    }
+
+    fun calculateNextPrayerCountdown(
+        latitude: Double,
+        longitude: Double,
+        timezoneId: String,
+        method: CalculationMethod,
+        asrMadhhab: AsrMadhhab = AsrMadhhab.SHAFI,
+        epochMillis: Long = System.currentTimeMillis()
+    ): NextPrayerCountdown {
+        val tz = TimeZone.getTimeZone(timezoneId)
+        val cal = Calendar.getInstance(tz).apply { timeInMillis = epochMillis }
+        val todayTimes = calculatePrayerTimes(latitude, longitude, timezoneId, method, epochMillis, asrMadhhab)
+        val nowSecondsOfDay = cal.get(Calendar.HOUR_OF_DAY) * 3600L +
+            cal.get(Calendar.MINUTE) * 60L +
+            cal.get(Calendar.SECOND)
+
+        val prayerStrings = listOf(
+            todayTimes.fajr, todayTimes.sunrise, todayTimes.dhuhr,
+            todayTimes.asr, todayTimes.maghrib, todayTimes.isha
+        )
+        for (idx in prayerStrings.indices) {
+            val targetSec = parseHHmmSeconds(prayerStrings[idx]) ?: continue
+            if (targetSec > nowSecondsOfDay) {
+                val diffSec = targetSec - nowSecondsOfDay
+                return NextPrayerCountdown(
+                    prayerIndex = idx,
+                    timeHHmm = prayerStrings[idx],
+                    remainingMillis = diffSec * 1000L,
+                    formattedCountdown = formatCountdown(diffSec)
+                )
+            }
+        }
+        // Past Isha: target tomorrow's Fajr
+        val tomorrowTimes = calculatePrayerTimes(
+            latitude, longitude, timezoneId, method, epochMillis + 86_400_000L, asrMadhhab
+        )
+        val fajrSec = parseHHmmSeconds(tomorrowTimes.fajr) ?: 0L
+        val diffSec = ((86_400L - nowSecondsOfDay) + fajrSec).coerceAtLeast(0L)
+        return NextPrayerCountdown(
+            prayerIndex = 0,
+            timeHHmm = tomorrowTimes.fajr,
+            remainingMillis = diffSec * 1000L,
+            formattedCountdown = formatCountdown(diffSec)
+        )
+    }
+
+    private fun parseHHmmSeconds(hhmm: String): Long? {
+        val parts = hhmm.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toLongOrNull() ?: return null
+        val m = parts[1].toLongOrNull() ?: return null
+        return h * 3600L + m * 60L
+    }
+
+    private fun formatCountdown(totalSec: Long): String {
+        val clamped = totalSec.coerceAtLeast(0L)
+        val h = clamped / 3600L
+        val m = (clamped % 3600L) / 60L
+        val s = clamped % 60L
+        return "%02d:%02d:%02d".format(h, m, s)
     }
 
     fun currentHijriDate(timezoneId: String, epochMillis: Long = System.currentTimeMillis()): HijriDateDisplay {

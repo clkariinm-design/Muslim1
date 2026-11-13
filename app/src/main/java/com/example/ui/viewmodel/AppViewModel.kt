@@ -6,11 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.example.NuurQuranApplication
 import com.example.audio.AudioPlaybackManager
 import com.example.audio.PlaybackUiState
+import com.example.data.backup.BackupManager
+import com.example.data.backup.BackupRestoreSummary
 import com.example.data.local.AudioRepeatMode
 import com.example.data.local.AyahEntity
 import com.example.data.local.BookmarkWithAyah
 import com.example.data.local.DataManifest
+import com.example.data.local.HizbIndexEntry
+import com.example.data.local.JuzIndexEntry
 import com.example.data.local.NoteWithAyah
+import com.example.data.local.QuranDatabase
 import com.example.data.local.ReadingPlanEntity
 import com.example.data.local.SettingsRepository
 import com.example.data.local.SurahEntity
@@ -19,6 +24,7 @@ import com.example.data.repository.QuranRepository
 import com.example.data.repository.SearchResults
 import com.example.localization.AppLanguage
 import com.example.ui.theme.AppThemeMode
+import com.example.ui.theme.ReadingTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -50,7 +56,8 @@ sealed interface OnlineTafsirState {
 class AppViewModel(
     private val quranRepository: QuranRepository,
     private val settingsRepository: SettingsRepository,
-    private val audioManager: AudioPlaybackManager
+    private val audioManager: AudioPlaybackManager,
+    private val database: QuranDatabase? = null
 ) : ViewModel() {
 
     private val _initState = MutableStateFlow<DataInitState>(DataInitState.Loading)
@@ -60,6 +67,12 @@ class AppViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserSettings())
 
     val surahs: StateFlow<List<SurahEntity>> = quranRepository.observeAllSurahs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val juzEntries: StateFlow<List<JuzIndexEntry>> = quranRepository.observeJuzEntries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val hizbEntries: StateFlow<List<HizbIndexEntry>> = quranRepository.observeHizbEntries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val bookmarkedGlobalAyahs: StateFlow<Set<Int>> = quranRepository.observeBookmarkedGlobalNumbers()
@@ -202,8 +215,35 @@ class AppViewModel(
             ayahs = ayahs,
             startIndex = startAyahIndex,
             reciterId = s.selectedReciterId,
-            repeatMode = s.repeatMode
+            repeatMode = s.repeatMode,
+            playbackSpeed = s.playbackSpeed
         )
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val clamped = speed.coerceIn(0.75f, 1.5f)
+        audioManager.setPlaybackSpeed(clamped)
+        viewModelScope.launch { settingsRepository.setPlaybackSpeed(clamped) }
+    }
+
+    fun switchReciterAndReloadIfActive(reciterId: String) {
+        viewModelScope.launch {
+            settingsRepository.setReciter(reciterId)
+            val currentAudio = audioState.value
+            if (currentAudio.isActive) {
+                val surah = quranRepository.getSurahByNumber(currentAudio.currentSurahNumber) ?: return@launch
+                val ayahs = quranRepository.getAyahsBySurahSync(currentAudio.currentSurahNumber)
+                val idx = ayahs.indexOfFirst { it.numberInSurah == currentAudio.currentAyahNumber }.coerceAtLeast(0)
+                audioManager.playSurahFromAyah(
+                    surah = surah,
+                    ayahs = ayahs,
+                    startIndex = idx,
+                    reciterId = reciterId,
+                    repeatMode = settings.value.repeatMode,
+                    playbackSpeed = settings.value.playbackSpeed
+                )
+            }
+        }
     }
 
     fun togglePlayPause() = audioManager.togglePlayPause()
@@ -259,6 +299,8 @@ class AppViewModel(
     // Settings updates
     fun setLanguage(lang: AppLanguage) = viewModelScope.launch { settingsRepository.setLanguage(lang) }
     fun setThemeMode(mode: AppThemeMode) = viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    fun setReadingTheme(theme: ReadingTheme) = viewModelScope.launch { settingsRepository.setReadingTheme(theme) }
+    fun setDailyAyahGoal(goal: Int) = viewModelScope.launch { settingsRepository.setDailyAyahGoal(goal) }
     fun setArabicFontSize(sp: Float) = viewModelScope.launch { settingsRepository.setArabicFontSize(sp) }
     fun setTranslationFontSize(sp: Float) = viewModelScope.launch { settingsRepository.setTranslationFontSize(sp) }
     fun setShowSomali(show: Boolean) = viewModelScope.launch { settingsRepository.setShowSomaliTranslation(show) }
@@ -266,13 +308,24 @@ class AppViewModel(
     fun setShowTajweed(show: Boolean) = viewModelScope.launch { settingsRepository.setShowTajweedColors(show) }
     fun setReciter(id: String) = viewModelScope.launch { settingsRepository.setReciter(id) }
 
+    suspend fun exportBackupJson(): Result<String> {
+        val db = database ?: return Result.failure(IllegalStateException("Database unavailable"))
+        return runCatching { BackupManager.exportJson(db, settings.value) }
+    }
+
+    suspend fun importBackupJson(rawJson: String): Result<BackupRestoreSummary> {
+        val db = database ?: return Result.failure(IllegalStateException("Database unavailable"))
+        return BackupManager.importJson(rawJson, db, settingsRepository)
+    }
+
     class Factory(private val app: NuurQuranApplication) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return AppViewModel(
                 app.quranRepository,
                 app.settingsRepository,
-                app.audioPlaybackManager
+                app.audioPlaybackManager,
+                app.database
             ) as T
         }
     }

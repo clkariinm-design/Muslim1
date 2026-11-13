@@ -30,6 +30,21 @@ val AntiqueGoldContainer = Color(0xFFF4E6BE)
 val ErrorCoralDark = Color(0xFFFF8A80)
 val ErrorCoralLight = Color(0xFFB3261E)
 
+// Reader Theme Extensions & Hero Overlay Tokens
+val SepiaBackground = Color(0xFFF3E9D2)
+val SepiaSurface = Color(0xFFFAF3E3)
+val SepiaBorder = Color(0xFFD5C4A1)
+val SepiaInk = Color(0xFF3A2A1A)
+val SepiaMuted = Color(0xFF6B5742)
+
+val AmoledBlack = Color(0xFF000000)
+val AmoledSurface = Color(0xFF0D1411)
+val AmoledBorder = Color(0xFF1E352B)
+
+val HeroOverlayTop = Color(0xBB041711)
+val HeroOverlayMid = Color(0x99041711)
+val HeroOverlayBottom = Color(0xEE041711)
+
 // AlQuran Cloud Verified Tajweed Semantic Colors
 object TajweedPalette {
     val SilentOrWasl = Color(0xFF9E9E9E)       // h, l, s

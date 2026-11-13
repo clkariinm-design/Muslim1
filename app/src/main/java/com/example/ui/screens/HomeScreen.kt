@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VolunteerActivism
@@ -41,12 +42,15 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -62,6 +66,18 @@ import com.example.domain.PrayerTimesCalculator
 import com.example.localization.AppStrings
 import com.example.ui.components.IslamicNumberMedallion
 import com.example.ui.theme.AmiriFontFamily
+import com.example.ui.theme.EmeraldDeepest
+import com.example.ui.theme.GoldLight
+import com.example.ui.theme.GoldPrimary
+import com.example.ui.theme.HeroOverlayBottom
+import com.example.ui.theme.HeroOverlayMid
+import com.example.ui.theme.HeroOverlayTop
+import com.example.ui.theme.IvoryText
+import kotlinx.coroutines.delay
+import java.text.DateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.TimeZone
 
 @Composable
 fun HomeScreen(
@@ -74,25 +90,84 @@ fun HomeScreen(
     onOpenToolsTab: (Int) -> Unit,
     onOpenStudy: () -> Unit
 ) {
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+
     val lastSurah = remember(surahs, settings.lastReadSurah) {
         surahs.firstOrNull { it.number == settings.lastReadSurah }
     }
     val hijri = remember(settings.timezoneId) {
         PrayerTimesCalculator.currentHijriDate(settings.timezoneId)
     }
+    val gregorianDate = remember(settings.timezoneId, nowMillis / 60_000L) {
+        val tz = runCatching { TimeZone.getTimeZone(settings.timezoneId) }.getOrElse { TimeZone.getDefault() }
+        val fmt = DateFormat.getDateInstance(DateFormat.MEDIUM).apply { timeZone = tz }
+        fmt.format(Date(nowMillis))
+    }
+    val greeting = remember(settings.timezoneId, strings, nowMillis / 300_000L) {
+        val tz = runCatching { TimeZone.getTimeZone(settings.timezoneId) }.getOrElse { TimeZone.getDefault() }
+        val hour = Calendar.getInstance(tz).get(Calendar.HOUR_OF_DAY)
+        when {
+            hour < 12 -> strings.greetingMorning
+            hour < 17 -> strings.greetingAfternoon
+            else -> strings.greetingEvening
+        }
+    }
+
     val prayerTimes = remember(
         settings.customLatitude,
         settings.customLongitude,
         settings.timezoneId,
-        settings.calculationMethod
+        settings.calculationMethod,
+        settings.asrMadhhab
     ) {
         PrayerTimesCalculator.calculatePrayerTimes(
             latitude = settings.customLatitude,
             longitude = settings.customLongitude,
             timezoneId = settings.timezoneId,
-            method = settings.calculationMethod
+            method = settings.calculationMethod,
+            asrMadhhab = settings.asrMadhhab
         )
     }
+
+    val countdown = remember(
+        settings.customLatitude,
+        settings.customLongitude,
+        settings.timezoneId,
+        settings.calculationMethod,
+        settings.asrMadhhab,
+        nowMillis
+    ) {
+        PrayerTimesCalculator.calculateNextPrayerCountdown(
+            latitude = settings.customLatitude,
+            longitude = settings.customLongitude,
+            timezoneId = settings.timezoneId,
+            method = settings.calculationMethod,
+            asrMadhhab = settings.asrMadhhab,
+            epochMillis = nowMillis
+        )
+    }
+
+    val nextPrayerLabel = when (countdown.prayerIndex) {
+        0 -> strings.fajrLabel.substringBefore(" (")
+        1 -> strings.sunriseLabel.substringBefore(" (")
+        2 -> strings.dhuhrLabel.substringBefore(" (")
+        3 -> strings.asrLabel.substringBefore(" (")
+        4 -> strings.maghribLabel.substringBefore(" (")
+        else -> strings.ishaLabel.substringBefore(" (")
+    }
+
+    val cityLabel = if (settings.useCustomGpsCoords) {
+        "GPS (${"%.2f".format(settings.customLatitude)}, ${"%.2f".format(settings.customLongitude)})"
+    } else {
+        CuratedCities.findById(settings.selectedCityId).name
+    }
+
     val featuredSurahs = remember(surahs) {
         val ids = setOf(1, 2, 18, 36, 55, 67)
         surahs.filter { it.number in ids }
@@ -102,11 +177,12 @@ fun HomeScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 760.dp),
+                .widthIn(max = 760.dp)
+                .testTag("home_lazy_list"),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Luxury Hero Card with Architectural Arch Banner
+            // Luxury Hero Card with Architectural Arch Banner & Personalized Greeting
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -116,7 +192,7 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(228.dp)
+                            .height(252.dp)
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.img_hero_emerald_arch),
@@ -130,9 +206,9 @@ fun HomeScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            Color(0xBB041711),
-                                            Color(0x99041711),
-                                            Color(0xEE041711)
+                                            HeroOverlayTop,
+                                            HeroOverlayMid,
+                                            HeroOverlayBottom
                                         )
                                     )
                                 )
@@ -146,25 +222,27 @@ fun HomeScreen(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.Top
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "${hijri.day} ${hijri.monthNameLatin} ${hijri.year} H",
+                                        text = "${hijri.day} ${hijri.monthNameLatin} ${hijri.year} H • $gregorianDate",
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = Color(0xFFF3D98B)
+                                        color = GoldLight,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = "${hijri.day} ${hijri.monthNameAr} ${hijri.year}",
                                         style = MaterialTheme.typography.bodySmall,
                                         fontFamily = AmiriFontFamily,
-                                        color = Color(0xFFF6F2E6)
+                                        color = IvoryText
                                     )
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(50),
-                                    color = Color(0x66041711),
-                                    border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.6f))
+                                    color = HeroOverlayMid,
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.6f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -174,13 +252,13 @@ fun HomeScreen(
                                         Icon(
                                             imageVector = Icons.Default.Verified,
                                             contentDescription = null,
-                                            tint = Color(0xFFD4AF37),
+                                            tint = GoldPrimary,
                                             modifier = Modifier.size(14.dp)
                                         )
                                         Text(
                                             text = "114 • 6,236",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFF6F2E6)
+                                            color = IvoryText
                                         )
                                     }
                                 }
@@ -188,24 +266,31 @@ fun HomeScreen(
 
                             Column {
                                 Text(
+                                    text = greeting,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = GoldLight.copy(alpha = 0.92f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
                                     text = strings.appTitle,
                                     style = MaterialTheme.typography.displaySmall,
-                                    color = Color(0xFFF3D98B)
+                                    color = GoldLight
                                 )
                                 Text(
                                     text = strings.surahCountSummary,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFFF6F2E6).copy(alpha = 0.88f)
+                                    color = IvoryText.copy(alpha = 0.88f)
                                 )
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = {
                                         onOpenReader(settings.lastReadSurah, settings.lastReadAyah)
                                     },
                                     modifier = Modifier.testTag("home_continue_reading_button"),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFD4AF37),
-                                        contentColor = Color(0xFF041711)
+                                        containerColor = GoldPrimary,
+                                        contentColor = EmeraldDeepest
                                     )
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null)
@@ -227,7 +312,28 @@ fun HomeScreen(
                 }
             }
 
-            // Quick Access 4-tile Grid
+            // Live Next Prayer Countdown Banner
+            item {
+                HomeNextPrayerCountdownBanner(
+                    nextPrayerName = nextPrayerLabel,
+                    countdown = countdown,
+                    cityLabel = cityLabel,
+                    strings = strings,
+                    onClick = { onOpenToolsTab(0) }
+                )
+            }
+
+            // Daily Worship Overview + Goal + Streak + Tasbih Shortcut
+            item {
+                HomeDailyWorshipOverviewCard(
+                    settings = settings,
+                    strings = strings,
+                    onOpenTasbih = { onOpenToolsTab(3) },
+                    onOpenAdhkar = { onOpenToolsTab(2) }
+                )
+            }
+
+            // Quick Access 4+1 Worship Grid
             item {
                 Text(
                     text = strings.quickAccess,
@@ -270,14 +376,23 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f)
                     )
                     QuickToolTile(
-                        title = strings.openDuas,
-                        subtitle = "Rabbana",
-                        icon = Icons.Default.VolunteerActivism,
-                        tag = "quick_duas_tile",
+                        title = strings.openTasbih,
+                        subtitle = "${settings.tasbihCount} / ${if (settings.tasbihTarget > 0) settings.tasbihTarget else "∞"}",
+                        icon = Icons.Default.RadioButtonChecked,
+                        tag = "quick_tasbih_tile",
                         onClick = { onOpenToolsTab(3) },
                         modifier = Modifier.weight(1f)
                     )
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+                QuickToolTile(
+                    title = strings.openDuas,
+                    subtitle = "Rabbana • 22 Duas",
+                    icon = Icons.Default.VolunteerActivism,
+                    tag = "quick_duas_tile",
+                    onClick = { onOpenToolsTab(4) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // Khatam Progress & Active Plan Card
@@ -352,11 +467,6 @@ fun HomeScreen(
 
             // Prayer Snapshot Banner
             item {
-                val cityLabel = if (settings.useCustomGpsCoords) {
-                    "GPS (${"%.2f".format(settings.customLatitude)}, ${"%.2f".format(settings.customLongitude)})"
-                } else {
-                    CuratedCities.findById(settings.selectedCityId).name
-                }
                 HomePrayerSnapshotCard(
                     cityLabel = cityLabel,
                     prayerTimes = prayerTimes,

@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,9 +13,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -21,8 +30,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -49,8 +60,9 @@ import com.example.localization.AppLanguage
 import com.example.localization.AppStrings
 import com.example.ui.theme.AmiriFontFamily
 import com.example.ui.theme.AppThemeMode
+import com.example.ui.theme.ReadingTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     settings: UserSettings,
@@ -63,15 +75,29 @@ fun SettingsScreen(
     onToggleSomali: (Boolean) -> Unit,
     onToggleEnglish: (Boolean) -> Unit,
     onToggleTajweed: (Boolean) -> Unit,
-    onReciterChange: (String) -> Unit
+    onReciterChange: (String) -> Unit,
+    onReadingThemeChange: (ReadingTheme) -> Unit = {},
+    onDailyGoalChange: (Int) -> Unit = {},
+    onPlaybackSpeedChange: (Float) -> Unit = {},
+    onExportBackup: () -> Unit = {},
+    onImportBackup: () -> Unit = {},
+    backupFeedback: String? = null
 ) {
     var reciterExpanded by remember { mutableStateOf(false) }
+    val readingThemeLabels = mapOf(
+        ReadingTheme.DEFAULT to strings.readingThemeDefault,
+        ReadingTheme.EMERALD_NIGHT to strings.readingThemeEmerald,
+        ReadingTheme.WARM_SEPIA to strings.readingThemeSepia,
+        ReadingTheme.AMOLED_DARK to strings.readingThemeAmoled,
+        ReadingTheme.CLASSIC_PARCHMENT to strings.readingThemeParchment
+    )
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 760.dp),
+                .widthIn(max = 760.dp)
+                .testTag("settings_lazy_list"),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -83,7 +109,7 @@ fun SettingsScreen(
                 )
             }
 
-            // Language & Theme Card
+            // Language, App Theme & Reading Theme Card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -92,7 +118,11 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(strings.languageLabel, style = MaterialTheme.typography.titleMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             AppLanguage.entries.forEach { lang ->
                                 FilterChip(
                                     selected = settings.language == lang,
@@ -104,7 +134,11 @@ fun SettingsScreen(
                         }
 
                         Text(strings.themeLabel, style = MaterialTheme.typography.titleMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             listOf(
                                 AppThemeMode.DARK to strings.themeDark,
                                 AppThemeMode.LIGHT to strings.themeLight,
@@ -115,6 +149,67 @@ fun SettingsScreen(
                                     onClick = { onThemeChange(mode) },
                                     label = { Text(label) },
                                     modifier = Modifier.testTag("theme_chip_${mode.id}")
+                                )
+                            }
+                        }
+
+                        Text(strings.readingThemeLabel, style = MaterialTheme.typography.titleMedium)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            ReadingTheme.entries.forEach { rt ->
+                                FilterChip(
+                                    selected = settings.readingTheme == rt,
+                                    onClick = { onReadingThemeChange(rt) },
+                                    label = { Text(readingThemeLabels[rt] ?: rt.name) },
+                                    modifier = Modifier.testTag("settings_reading_theme_${rt.id}")
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Daily Goal & Audio Speed Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "${strings.dailyGoalLabel}: ${settings.dailyAyahGoal} ${strings.ayahsWord}",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(10, 20, 40, 80, 100).forEach { goal ->
+                                FilterChip(
+                                    selected = settings.dailyAyahGoal == goal,
+                                    onClick = { onDailyGoalChange(goal) },
+                                    label = { Text("$goal") },
+                                    modifier = Modifier.testTag("daily_goal_chip_$goal")
+                                )
+                            }
+                        }
+
+                        Text(strings.playbackSpeedLabel, style = MaterialTheme.typography.titleMedium)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(0.75f, 1.0f, 1.25f, 1.5f).forEach { speed ->
+                                FilterChip(
+                                    selected = kotlin.math.abs(settings.playbackSpeed - speed) < 0.05f,
+                                    onClick = { onPlaybackSpeedChange(speed) },
+                                    label = { Text("${speed}x") }
                                 )
                             }
                         }
@@ -222,6 +317,61 @@ fun SettingsScreen(
                 }
             }
 
+            // Local JSON Backup & Restore Card (Zero-Permission SAF)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = strings.backupSectionTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = strings.backupSectionDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = onExportBackup,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("export_backup_button")
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(strings.exportBackup, maxLines = 1)
+                            }
+                            OutlinedButton(
+                                onClick = onImportBackup,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("import_backup_button")
+                            ) {
+                                Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(strings.importBackup, maxLines = 1)
+                            }
+                        }
+                        if (!backupFeedback.isNullOrBlank()) {
+                            Text(
+                                text = backupFeedback,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
             // Data Sources, Licenses & Integrity Card
             item {
                 Card(
@@ -261,10 +411,12 @@ fun SettingsScreen(
                 }
             }
 
-            // Draft Privacy Policy Card
+            // Complete Local-First Privacy Policy Card
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("privacy_policy_card"),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
@@ -278,12 +430,23 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
-                            Text(
-                                text = strings.privacyPolicyDraftNotice,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(10.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.VerifiedUser,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = strings.privacyPolicyCommitment,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                         Text(
                             text = strings.privacyPolicyBody,

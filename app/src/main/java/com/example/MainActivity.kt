@@ -10,7 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,12 +26,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
@@ -52,15 +49,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -72,6 +72,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.localization.AppLanguage
 import com.example.localization.stringsFor
+import com.example.ui.components.FullAudioPlayerSheet
 import com.example.ui.components.MiniAudioPlayerBar
 import com.example.ui.navigation.AppRoute
 import com.example.ui.screens.HomeScreen
@@ -85,6 +86,9 @@ import com.example.ui.theme.NuurQuranTheme
 import com.example.ui.viewmodel.AppViewModel
 import com.example.ui.viewmodel.DataInitState
 import com.example.ui.viewmodel.ToolsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -190,10 +194,13 @@ private fun NuurQuranAppShell(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDest = backStackEntry?.destination
+    val scope = rememberCoroutineScope()
 
     val settings by appViewModel.settings.collectAsStateWithLifecycle()
     val strings = remember(settings.language) { stringsFor(settings.language) }
     val surahs by appViewModel.surahs.collectAsStateWithLifecycle()
+    val juzEntries by appViewModel.juzEntries.collectAsStateWithLifecycle()
+    val hizbEntries by appViewModel.hizbEntries.collectAsStateWithLifecycle()
     val bookmarkedGlobals by appViewModel.bookmarkedGlobalAyahs.collectAsStateWithLifecycle()
     val bookmarks by appViewModel.bookmarks.collectAsStateWithLifecycle()
     val notes by appViewModel.notes.collectAsStateWithLifecycle()
@@ -210,13 +217,17 @@ private fun NuurQuranAppShell(
     val adhkarCounters by toolsViewModel.adhkarCounters.collectAsStateWithLifecycle()
     val deviceAzimuth by toolsViewModel.deviceAzimuth.collectAsStateWithLifecycle()
     val hasCompassSensor by toolsViewModel.hasCompassSensor.collectAsStateWithLifecycle()
+    val compassAccuracy by toolsViewModel.compassAccuracy.collectAsStateWithLifecycle()
     val locationFeedback by toolsViewModel.locationFeedback.collectAsStateWithLifecycle()
 
+    var showFullAudioPlayer by remember { mutableStateOf(false) }
+    var backupFeedback by remember { mutableStateOf<String?>(null) }
+
+    // Consolidated 5 Primary Destinations: Home, Qur'an, Search, Worship, Settings
     val navItems = listOf(
         TopNavItem(AppRoute.Home, strings.navHome, Icons.Filled.Home, Icons.Outlined.Home, "nav_home"),
         TopNavItem(AppRoute.Surahs, strings.navQuran, Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook, "nav_surahs"),
         TopNavItem(AppRoute.Search, strings.navSearch, Icons.Filled.Search, Icons.Outlined.Search, "nav_search"),
-        TopNavItem(AppRoute.Study, strings.navStudy, Icons.Filled.Bookmarks, Icons.Outlined.Bookmarks, "nav_study"),
         TopNavItem(AppRoute.Tools(), strings.navTools, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_tools"),
         TopNavItem(AppRoute.Settings, strings.navSettings, Icons.Filled.Settings, Icons.Outlined.Settings, "nav_settings")
     )
@@ -237,7 +248,7 @@ private fun NuurQuranAppShell(
         navController.navigate(AppRoute.Reader(surahNumber = surahNum, targetAyah = ayahNum))
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var askedNotificationPermission by remember { mutableStateOf(false) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -252,6 +263,53 @@ private fun NuurQuranAppShell(
             ) == PackageManager.PERMISSION_GRANTED
             if (!granted) {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val res = appViewModel.exportBackupJson()
+            res.onSuccess { jsonPayload ->
+                val writeOk = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)?.use { os ->
+                            os.write(jsonPayload.toByteArray(Charsets.UTF_8))
+                        } ?: error("Cannot open output stream")
+                    }
+                }
+                backupFeedback = if (writeOk.isSuccess) strings.backupExportSuccess else strings.backupError
+            }.onFailure {
+                backupFeedback = strings.backupError
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: error("Cannot open input stream")
+                }
+            }
+            raw.onSuccess { text ->
+                val res = appViewModel.importBackupJson(text)
+                backupFeedback = res.fold(
+                    onSuccess = { summary ->
+                        "${strings.backupImportSuccess} (${summary.bookmarksRestored}/${summary.notesRestored}/${summary.plansRestored})"
+                    },
+                    onFailure = { strings.backupError }
+                )
+            }.onFailure {
+                backupFeedback = strings.backupError
             }
         }
     }
@@ -272,16 +330,25 @@ private fun NuurQuranAppShell(
                         onSeek = { appViewModel.seekTo(it) },
                         onCycleRepeat = { appViewModel.cycleRepeatMode() },
                         onDismiss = { appViewModel.dismissAudio() },
-                        onOpenReader = { s, a -> openReader(s, a) }
+                        onOpenReader = { s, a -> openReader(s, a) },
+                        onExpandPlayer = { showFullAudioPlayer = true },
+                        onRetryDownload = { failedSurahNum ->
+                            surahs.firstOrNull { it.number == failedSurahNum }?.let { surah ->
+                                appViewModel.downloadSurahAudio(surah)
+                            }
+                        }
                     )
                     if (!useRail && !isReaderRoute) {
                         NavigationBar(
                             containerColor = MaterialTheme.colorScheme.surface,
-                            windowInsets = WindowInsets.navigationBars
+                            windowInsets = WindowInsets.navigationBars,
+                            modifier = Modifier.testTag("bottom_navigation_bar")
                         ) {
                             navItems.forEach { item ->
                                 val selected = when (item.route) {
                                     is AppRoute.Tools -> currentDest?.hasRoute<AppRoute.Tools>() == true
+                                    is AppRoute.Surahs -> currentDest?.hasRoute<AppRoute.Surahs>() == true ||
+                                        currentDest?.hasRoute<AppRoute.Study>() == true
                                     else -> currentDest?.hasRoute(item.route::class) == true
                                 }
                                 NavigationBarItem(
@@ -314,11 +381,16 @@ private fun NuurQuranAppShell(
                     .padding(innerPadding)
             ) {
                 if (useRail && !isReaderRoute) {
-                    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+                    NavigationRail(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.testTag("side_navigation_rail")
+                    ) {
                         Spacer(modifier = Modifier.height(12.dp))
                         navItems.forEach { item ->
                             val selected = when (item.route) {
                                 is AppRoute.Tools -> currentDest?.hasRoute<AppRoute.Tools>() == true
+                                is AppRoute.Surahs -> currentDest?.hasRoute<AppRoute.Surahs>() == true ||
+                                    currentDest?.hasRoute<AppRoute.Study>() == true
                                 else -> currentDest?.hasRoute(item.route::class) == true
                             }
                             NavigationRailItem(
@@ -354,7 +426,7 @@ private fun NuurQuranAppShell(
                             onOpenToolsTab = { tab ->
                                 navController.navigate(AppRoute.Tools(initialTab = tab))
                             },
-                            onOpenStudy = { navigateTop(AppRoute.Study) }
+                            onOpenStudy = { navController.navigate(AppRoute.Study) }
                         )
                     }
 
@@ -366,7 +438,11 @@ private fun NuurQuranAppShell(
                             strings = strings,
                             onOpenSurah = { s -> openReader(s, 1) },
                             onDownloadSurah = { surah -> appViewModel.downloadSurahAudio(surah) },
-                            onCancelDownload = { appViewModel.cancelSurahDownload() }
+                            onCancelDownload = { appViewModel.cancelSurahDownload() },
+                            juzEntries = juzEntries,
+                            hizbEntries = hizbEntries,
+                            onOpenReader = { s, a -> openReader(s, a) },
+                            onOpenStudy = { navController.navigate(AppRoute.Study) }
                         )
                     }
 
@@ -408,7 +484,13 @@ private fun NuurQuranAppShell(
                             onTranslationSizeChange = { appViewModel.setTranslationFontSize(it) },
                             onToggleSomali = { appViewModel.setShowSomali(it) },
                             onToggleEnglish = { appViewModel.setShowEnglish(it) },
-                            onToggleTajweed = { appViewModel.setShowTajweed(it) }
+                            onToggleTajweed = { appViewModel.setShowTajweed(it) },
+                            onReadingThemeChange = { appViewModel.setReadingTheme(it) },
+                            onNavigateSurah = { targetSurah ->
+                                navController.navigate(AppRoute.Reader(surahNumber = targetSurah, targetAyah = 1)) {
+                                    popUpTo<AppRoute.Reader> { inclusive = true }
+                                }
+                            }
                         )
                     }
 
@@ -474,7 +556,16 @@ private fun NuurQuranAppShell(
                             onStartCompass = { toolsViewModel.startCompass() },
                             onStopCompass = { toolsViewModel.stopCompass() },
                             onIncrementDhikr = { o, max -> toolsViewModel.incrementDhikrCounter(o, max) },
-                            onOpenReader = { s, a -> openReader(s, a) }
+                            onOpenReader = { s, a -> openReader(s, a) },
+                            compassAccuracy = compassAccuracy,
+                            onSelectAsrMadhhab = { toolsViewModel.setAsrMadhhab(it) },
+                            onTogglePrayerNotifications = { toolsViewModel.setPrayerNotificationsEnabled(it) },
+                            onToggleFavoriteAdhkar = { toolsViewModel.toggleFavoriteAdhkar(it) },
+                            onIncrementTasbih = { toolsViewModel.incrementTasbih() },
+                            onResetTasbih = { toolsViewModel.resetTasbih() },
+                            onSelectTasbihTarget = { toolsViewModel.setTasbihTarget(it) },
+                            onSelectTasbihLabel = { toolsViewModel.setTasbihLabel(it) },
+                            onToggleTasbihHaptic = { toolsViewModel.setTasbihHaptic(it) }
                         )
                     }
 
@@ -490,11 +581,42 @@ private fun NuurQuranAppShell(
                             onToggleSomali = { appViewModel.setShowSomali(it) },
                             onToggleEnglish = { appViewModel.setShowEnglish(it) },
                             onToggleTajweed = { appViewModel.setShowTajweed(it) },
-                            onReciterChange = { appViewModel.setReciter(it) }
+                            onReciterChange = { appViewModel.setReciter(it) },
+                            onReadingThemeChange = { appViewModel.setReadingTheme(it) },
+                            onDailyGoalChange = { appViewModel.setDailyAyahGoal(it) },
+                            onPlaybackSpeedChange = { appViewModel.setPlaybackSpeed(it) },
+                            onExportBackup = {
+                                exportLauncher.launch("nuur_quran_backup.json")
+                            },
+                            onImportBackup = {
+                                importLauncher.launch(arrayOf("application/json", "text/plain"))
+                            },
+                            backupFeedback = backupFeedback
                         )
                     }
                 }
             }
         }
+    }
+
+    if (showFullAudioPlayer && audioState.isActive) {
+        val currentSurah = surahs.firstOrNull { it.number == audioState.currentSurahNumber }
+        FullAudioPlayerSheet(
+            audioState = audioState,
+            surah = currentSurah,
+            downloadedCount = downloadedCounts[audioState.currentSurahNumber] ?: 0,
+            strings = strings,
+            onTogglePlayPause = { appViewModel.togglePlayPause() },
+            onPrevious = { appViewModel.previousAyah() },
+            onNext = { appViewModel.nextAyah() },
+            onSeek = { appViewModel.seekTo(it) },
+            onCycleRepeat = { appViewModel.cycleRepeatMode() },
+            onSpeedChange = { appViewModel.setPlaybackSpeed(it) },
+            onReciterChange = { appViewModel.switchReciterAndReloadIfActive(it) },
+            onDownloadSurah = { s -> appViewModel.downloadSurahAudio(s) },
+            onCancelDownload = { appViewModel.cancelSurahDownload() },
+            onOpenReader = { s, a -> openReader(s, a) },
+            onDismiss = { showFullAudioPlayer = false }
+        )
     }
 }

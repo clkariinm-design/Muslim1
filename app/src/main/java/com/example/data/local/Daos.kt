@@ -7,6 +7,26 @@ import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+data class JuzIndexEntry(
+    val juz: Int,
+    val startSurah: Int,
+    val startAyah: Int,
+    val startGlobal: Int,
+    val startSurahName: String,
+    val startSurahArabicName: String,
+    val ayahCount: Int
+)
+
+data class HizbIndexEntry(
+    val hizb: Int,
+    val startSurah: Int,
+    val startAyah: Int,
+    val startGlobal: Int,
+    val startSurahName: String,
+    val startSurahArabicName: String,
+    val ayahCount: Int
+)
+
 @Dao
 interface QuranDao {
     @Query("SELECT COUNT(*) FROM surahs")
@@ -72,6 +92,48 @@ interface QuranDao {
         """
     )
     fun observeQuranicDuas(): Flow<List<AyahEntity>>
+
+    @Query(
+        """
+        SELECT a.juz AS juz,
+               a.surahNumber AS startSurah,
+               a.numberInSurah AS startAyah,
+               a.globalNumber AS startGlobal,
+               s.englishName AS startSurahName,
+               s.arabicName AS startSurahArabicName,
+               m.ayahCount AS ayahCount
+        FROM ayahs a
+        INNER JOIN (
+            SELECT juz, MIN(globalNumber) AS minGlobal, COUNT(*) AS ayahCount
+            FROM ayahs
+            GROUP BY juz
+        ) m ON a.globalNumber = m.minGlobal
+        INNER JOIN surahs s ON s.number = a.surahNumber
+        ORDER BY a.juz ASC
+        """
+    )
+    fun observeJuzEntries(): Flow<List<JuzIndexEntry>>
+
+    @Query(
+        """
+        SELECT ((a.hizbQuarter - 1) / 4) + 1 AS hizb,
+               a.surahNumber AS startSurah,
+               a.numberInSurah AS startAyah,
+               a.globalNumber AS startGlobal,
+               s.englishName AS startSurahName,
+               s.arabicName AS startSurahArabicName,
+               m.ayahCount AS ayahCount
+        FROM ayahs a
+        INNER JOIN (
+            SELECT ((hizbQuarter - 1) / 4) + 1 AS hizbNum, MIN(globalNumber) AS minGlobal, COUNT(*) AS ayahCount
+            FROM ayahs
+            GROUP BY ((hizbQuarter - 1) / 4) + 1
+        ) m ON a.globalNumber = m.minGlobal
+        INNER JOIN surahs s ON s.number = a.surahNumber
+        ORDER BY hizb ASC
+        """
+    )
+    fun observeHizbEntries(): Flow<List<HizbIndexEntry>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSurahs(surahs: List<SurahEntity>)
@@ -143,6 +205,15 @@ interface UserStudyDao {
 
     @Query("DELETE FROM reading_plans WHERE id = :planId")
     suspend fun deletePlan(planId: Long)
+
+    @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
+    suspend fun getBookmarksSync(): List<BookmarkEntity>
+
+    @Query("SELECT * FROM notes ORDER BY updatedAt DESC")
+    suspend fun getNotesSync(): List<NoteEntity>
+
+    @Query("SELECT * FROM reading_plans ORDER BY id DESC")
+    suspend fun getPlansSync(): List<ReadingPlanEntity>
 }
 
 @Dao

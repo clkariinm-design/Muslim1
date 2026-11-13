@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.hardware.SensorManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -21,10 +23,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,9 +44,12 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,15 +62,18 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.data.local.UserSettings
+import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
 import com.example.domain.CuratedCities
 import com.example.domain.CuratedCity
 import com.example.domain.PrayerTimesCalculator
 import com.example.localization.AppLanguage
 import com.example.localization.AppStrings
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,10 +86,12 @@ internal fun PrayerTimesTab(
     onSelectMethod: (CalculationMethod) -> Unit,
     onSelectTimezone: (String) -> Unit,
     onRequestDeviceLocation: () -> Unit,
-    onLocationDenied: (String) -> Unit
+    onLocationDenied: (String) -> Unit,
+    onSelectAsrMadhhab: (AsrMadhhab) -> Unit = {},
+    onTogglePrayerNotifications: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
@@ -87,22 +101,68 @@ internal fun PrayerTimesTab(
         }
     }
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            onTogglePrayerNotifications(true)
+        }
+    }
+
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+
     val times = remember(
         settings.customLatitude,
         settings.customLongitude,
         settings.timezoneId,
-        settings.calculationMethod
+        settings.calculationMethod,
+        settings.asrMadhhab
     ) {
         PrayerTimesCalculator.calculatePrayerTimes(
             latitude = settings.customLatitude,
             longitude = settings.customLongitude,
             timezoneId = settings.timezoneId,
-            method = settings.calculationMethod
+            method = settings.calculationMethod,
+            asrMadhhab = settings.asrMadhhab
         )
+    }
+
+    val countdown = remember(
+        settings.customLatitude,
+        settings.customLongitude,
+        settings.timezoneId,
+        settings.calculationMethod,
+        settings.asrMadhhab,
+        nowMillis
+    ) {
+        PrayerTimesCalculator.calculateNextPrayerCountdown(
+            latitude = settings.customLatitude,
+            longitude = settings.customLongitude,
+            timezoneId = settings.timezoneId,
+            method = settings.calculationMethod,
+            asrMadhhab = settings.asrMadhhab,
+            epochMillis = nowMillis
+        )
+    }
+
+    val nextPrayerName = when (countdown.prayerIndex) {
+        0 -> strings.fajrLabel.substringBefore(" (")
+        1 -> strings.sunriseLabel.substringBefore(" (")
+        2 -> strings.dhuhrLabel.substringBefore(" (")
+        3 -> strings.asrLabel.substringBefore(" (")
+        4 -> strings.maghribLabel.substringBefore(" (")
+        else -> strings.ishaLabel.substringBefore(" (")
     }
 
     var cityMenuOpen by remember { mutableStateOf(false) }
     var methodMenuOpen by remember { mutableStateOf(false) }
+    var madhhabMenuOpen by remember { mutableStateOf(false) }
     var tzMenuOpen by remember { mutableStateOf(false) }
 
     val selectedCity = CuratedCities.findById(settings.selectedCityId)
@@ -136,6 +196,49 @@ internal fun PrayerTimesTab(
                         text = strings.prayerVerificationNotice,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+        }
+
+        // Next Prayer Live Countdown Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "${strings.nextPrayerLabel}: $nextPrayerName",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = countdown.timeHHmm,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = strings.nextPrayerIn,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = countdown.formattedCountdown,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -194,6 +297,59 @@ internal fun PrayerTimesTab(
             }
         }
 
+        // Local Consent-Based Notifications Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(strings.prayerRemindersLabel, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            text = strings.prayerRemindersDesc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = settings.prayerNotificationsEnabled,
+                        onCheckedChange = { enable ->
+                            if (!enable) {
+                                onTogglePrayerNotifications(false)
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (granted) {
+                                    onTogglePrayerNotifications(true)
+                                } else {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            } else {
+                                onTogglePrayerNotifications(true)
+                            }
+                        },
+                        modifier = Modifier.testTag("prayer_notifications_switch")
+                    )
+                }
+            }
+        }
+
+        // Location, Method, Asr Madhhab, Timezone Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -250,7 +406,7 @@ internal fun PrayerTimesTab(
                             if (granted) {
                                 onRequestDeviceLocation()
                             } else {
-                                permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                                locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                             }
                         },
                         modifier = Modifier
@@ -311,6 +467,45 @@ internal fun PrayerTimesTab(
                     }
 
                     ExposedDropdownMenuBox(
+                        expanded = madhhabMenuOpen,
+                        onExpandedChange = { madhhabMenuOpen = it }
+                    ) {
+                        val currentMadhhabLabel = if (settings.asrMadhhab == AsrMadhhab.SHAFI) {
+                            strings.asrShafiLabel
+                        } else {
+                            strings.asrHanafiLabel
+                        }
+                        OutlinedTextField(
+                            value = currentMadhhabLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(strings.asrMadhhabLabel) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = madhhabMenuOpen) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .testTag("asr_madhhab_dropdown")
+                        )
+                        ExposedDropdownMenu(
+                            expanded = madhhabMenuOpen,
+                            onDismissRequest = { madhhabMenuOpen = false }
+                        ) {
+                            listOf(
+                                AsrMadhhab.SHAFI to strings.asrShafiLabel,
+                                AsrMadhhab.HANAFI to strings.asrHanafiLabel
+                            ).forEach { (madhhab, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        onSelectAsrMadhhab(madhhab)
+                                        madhhabMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    ExposedDropdownMenuBox(
                         expanded = tzMenuOpen,
                         onExpandedChange = { tzMenuOpen = it }
                     ) {
@@ -351,7 +546,8 @@ internal fun QiblaTab(
     settings: UserSettings,
     strings: AppStrings,
     deviceAzimuth: Float?,
-    hasCompassSensor: Boolean
+    hasCompassSensor: Boolean,
+    compassAccuracy: Int = SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM
 ) {
     val qiblaBearing = remember(settings.customLatitude, settings.customLongitude) {
         PrayerTimesCalculator.calculateQiblaBearing(settings.customLatitude, settings.customLongitude)
@@ -364,6 +560,9 @@ internal fun QiblaTab(
     )
     val delta = abs(((qiblaBearing - heading + 540.0) % 360.0) - 180.0)
     val isAligned = deviceAzimuth != null && delta <= 6.0
+    val isLowAccuracy = hasCompassSensor &&
+        (compassAccuracy == SensorManager.SENSOR_STATUS_UNRELIABLE ||
+            compassAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_LOW)
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
@@ -372,6 +571,7 @@ internal fun QiblaTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -386,9 +586,9 @@ internal fun QiblaTab(
             text = "${strings.qiblaBearingLabel}: ${"%.1f".format(qiblaBearing)}°",
             style = MaterialTheme.typography.titleMedium
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        Box(modifier = Modifier.size(250.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(240.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val radius = size.minDimension / 2f - 12f
                 val center = Offset(size.width / 2f, size.height / 2f)
@@ -420,7 +620,7 @@ internal fun QiblaTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         if (isAligned) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -437,8 +637,48 @@ internal fun QiblaTab(
             Text(
                 text = strings.sensorUnavailableNote,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = if (isLowAccuracy) {
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("qibla_calibration_card")
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ScreenRotation,
+                    contentDescription = null,
+                    tint = if (isLowAccuracy) MaterialTheme.colorScheme.error else primaryColor
+                )
+                Column {
+                    Text(
+                        text = if (isLowAccuracy) strings.compassAccuracyLow else strings.compassAccuracyGood,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isLowAccuracy) MaterialTheme.colorScheme.error else primaryColor
+                    )
+                    Text(
+                        text = strings.compassCalibrationHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

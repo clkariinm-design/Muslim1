@@ -31,9 +31,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
 data class PlaybackUiState(
@@ -46,11 +48,13 @@ data class PlaybackUiState(
     val currentGlobalAyah: Int = 1,
     val reciterId: String = "ar.alafasy",
     val repeatMode: AudioRepeatMode = AudioRepeatMode.OFF,
+    val playbackSpeed: Float = 1.0f,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
     val downloadingSurahNumber: Int? = null,
-    val downloadProgress: Float = 0f
+    val downloadProgress: Float = 0f,
+    val lastFailedSurahNumber: Int? = null
 )
 
 class AudioPlaybackManager(
@@ -70,7 +74,8 @@ class AudioPlaybackManager(
     private var controller: MediaController? = null
     private var tickerJob: Job? = null
     private var downloadJob: Job? = null
-    private var currentPlaylistAyahs: List<AyahEntity> = emptyList()
+    @Volatile
+    private var activeHttpCall: Call? = null
 
     private fun ensureController(onReady: (MediaController) -> Unit) {
         val existing = controller
@@ -168,11 +173,11 @@ class AudioPlaybackManager(
         ayahs: List<AyahEntity>,
         startIndex: Int,
         reciterId: String,
-        repeatMode: AudioRepeatMode
+        repeatMode: AudioRepeatMode,
+        playbackSpeed: Float = _state.value.playbackSpeed
     ) {
         if (ayahs.isEmpty()) return
         val safeIdx = startIndex.coerceIn(0, ayahs.lastIndex)
-        currentPlaylistAyahs = ayahs
         val reciter = RecitersCatalog.findById(reciterId)
 
         scope.launch {
@@ -204,9 +209,11 @@ class AudioPlaybackManager(
                 }
             }
 
+            val clampedSpeed = playbackSpeed.coerceIn(0.75f, 1.5f)
             ensureController { mc ->
                 mc.setMediaItems(mediaItems, safeIdx, 0L)
                 applyRepeatMode(mc, repeatMode)
+                mc.setPlaybackSpeed(clampedSpeed)
                 mc.prepare()
                 mc.play()
                 val target = ayahs[safeIdx]
@@ -219,6 +226,7 @@ class AudioPlaybackManager(
                         currentGlobalAyah = target.globalNumber,
                         reciterId = reciter.id,
                         repeatMode = repeatMode,
+                        playbackSpeed = clampedSpeed,
                         errorMessage = null
                     )
                 }
@@ -255,6 +263,12 @@ class AudioPlaybackManager(
         controller?.let { applyRepeatMode(it, mode) }
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        val clamped = speed.coerceIn(0.75f, 1.5f)
+        _state.update { it.copy(playbackSpeed = clamped) }
+        controller?.setPlaybackSpeed(clamped)
+    }
+
     private fun applyRepeatMode(mc: MediaController, mode: AudioRepeatMode) {
         mc.repeatMode = when (mode) {
             AudioRepeatMode.OFF -> Player.REPEAT_MODE_OFF
@@ -282,7 +296,12 @@ class AudioPlaybackManager(
         if (downloadJob?.isActive == true) return
         downloadJob = scope.launch {
             _state.update {
-                it.copy(downloadingSurahNumber = surah.number, downloadProgress = 0f, errorMessage = null)
+                it.copy(
+                    downloadingSurahNumber = surah.number,
+                    downloadProgress = 0f,
+                    errorMessage = null,
+                    lastFailedSurahNumber = null
+                )
             }
             val result = withContext(Dispatchers.IO) {
                 runCatching {
@@ -293,14 +312,17 @@ class AudioPlaybackManager(
                         if (!dest.exists() || dest.length() == 0L) {
                             val url = RecitersCatalog.audioUrlForAyah(reciterId, ayah.globalNumber)
                             val req = Request.Builder().url(url).build()
-                            httpClient.newCall(req).execute().use { resp ->
-                                if (!resp.isSuccessful) error("HTTP ${resp.code} for ayah ${ayah.numberInSurah}")
-                                val bytes = resp.body?.bytes() ?: error("Empty audio response")
-                                val tmp = File(dest.parentFile, "${dest.name}.tmp")
-                                tmp.writeBytes(bytes)
-                                if (!tmp.renameTo(dest)) {
-                                    dest.writeBytes(bytes)
-                                    tmp.delete()
+                            val call = httpClient.newCall(req)
+                            activeHttpCall = call
+                            try {
+                                call.execute().use { resp ->
+                                    if (!resp.isSuccessful) error("HTTP ${resp.code} for ayah ${ayah.numberInSurah}")
+                                    val bodyStream = resp.body?.byteStream() ?: error("Empty audio response")
+                                    writeStreamAtomically(bodyStream, dest) { coroutineContext.ensureActive() }
+                                }
+                            } finally {
+                                if (activeHttpCall === call) {
+                                    activeHttpCall = null
                                 }
                             }
                         }
@@ -326,7 +348,8 @@ class AudioPlaybackManager(
                 it.copy(
                     downloadingSurahNumber = null,
                     downloadProgress = 0f,
-                    errorMessage = result.exceptionOrNull()?.localizedMessage
+                    errorMessage = result.exceptionOrNull()?.localizedMessage,
+                    lastFailedSurahNumber = if (result.isFailure) surah.number else null
                 )
             }
             onComplete(result)
@@ -334,9 +357,13 @@ class AudioPlaybackManager(
     }
 
     fun cancelDownload() {
+        activeHttpCall?.cancel()
+        activeHttpCall = null
         downloadJob?.cancel()
         downloadJob = null
-        _state.update { it.copy(downloadingSurahNumber = null, downloadProgress = 0f) }
+        _state.update {
+            it.copy(downloadingSurahNumber = null, downloadProgress = 0f)
+        }
     }
 
     fun deleteSurahAudio(surahNumber: Int, reciterId: String) {
@@ -346,6 +373,48 @@ class AudioPlaybackManager(
                 runCatching { File(entry.localPath).delete() }
             }
             audioDao.deleteForSurah(reciterId, surahNumber)
+        }
+    }
+
+    companion object {
+        internal fun writeStreamAtomically(
+            inputStream: InputStream,
+            dest: File,
+            checkActive: () -> Unit = {}
+        ) {
+            dest.parentFile?.mkdirs()
+            val tmp = File(dest.parentFile, "${dest.name}.tmp")
+            var completed = false
+            try {
+                inputStream.use { input ->
+                    tmp.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            checkActive()
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                        }
+                        output.flush()
+                    }
+                }
+                if (dest.exists()) {
+                    dest.delete()
+                }
+                if (!tmp.renameTo(dest)) {
+                    tmp.inputStream().use { src ->
+                        dest.outputStream().use { dst ->
+                            src.copyTo(dst)
+                        }
+                    }
+                    tmp.delete()
+                }
+                completed = true
+            } finally {
+                if (!completed) {
+                    tmp.delete()
+                }
+            }
         }
     }
 }

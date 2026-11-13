@@ -17,11 +17,14 @@ import com.example.NuurQuranApplication
 import com.example.data.local.AdhkarItem
 import com.example.data.local.SettingsRepository
 import com.example.data.repository.AdhkarRepository
+import com.example.domain.AsrMadhhab
 import com.example.domain.CalculationMethod
 import com.example.domain.CuratedCity
+import com.example.notifications.PrayerReminderScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.TimeZone
@@ -43,6 +46,9 @@ class ToolsViewModel(
 
     private val _hasCompassSensor = MutableStateFlow(false)
     val hasCompassSensor: StateFlow<Boolean> = _hasCompassSensor.asStateFlow()
+
+    private val _compassAccuracy = MutableStateFlow(SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM)
+    val compassAccuracy: StateFlow<Int> = _compassAccuracy.asStateFlow()
 
     private val _locationFeedback = MutableStateFlow<String?>(null)
     val locationFeedback: StateFlow<String?> = _locationFeedback.asStateFlow()
@@ -129,29 +135,85 @@ class ToolsViewModel(
         _deviceAzimuth.value = ((prev + 0.25f * diff) + 360f) % 360f
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        if (sensor?.type == Sensor.TYPE_ROTATION_VECTOR || sensor?.type == Sensor.TYPE_MAGNETIC_FIELD) {
+            _compassAccuracy.value = accuracy
+        }
+    }
 
     fun incrementDhikrCounter(order: Int, maxCount: Int) {
-        _adhkarCounters.update { map ->
-            val current = map[order] ?: 0
-            val next = if (current >= maxCount) 0 else current + 1
-            map + (order to next)
+        val current = _adhkarCounters.value[order] ?: 0
+        val next = if (current >= maxCount) 0 else current + 1
+        _adhkarCounters.update { map -> map + (order to next) }
+        if (maxCount > 0 && current + 1 == maxCount) {
+            viewModelScope.launch { settingsRepository.markAdhkarCompleted(order) }
         }
+    }
+
+    fun toggleFavoriteAdhkar(order: Int) {
+        viewModelScope.launch { settingsRepository.toggleFavoriteAdhkar(order) }
+    }
+
+    fun incrementTasbih() {
+        viewModelScope.launch { settingsRepository.incrementTasbih() }
+    }
+
+    fun resetTasbih() {
+        viewModelScope.launch { settingsRepository.resetTasbih() }
+    }
+
+    fun setTasbihTarget(target: Int) {
+        viewModelScope.launch { settingsRepository.setTasbihTarget(target) }
+    }
+
+    fun setTasbihLabel(label: String) {
+        viewModelScope.launch { settingsRepository.setTasbihLabel(label) }
+    }
+
+    fun setTasbihHaptic(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setTasbihHapticEnabled(enabled) }
     }
 
     fun selectManualCity(city: CuratedCity) {
         _locationFeedback.value = null
         viewModelScope.launch {
             settingsRepository.setManualCity(city.id, city.latitude, city.longitude, city.timezoneId)
+            syncRemindersIfNeeded()
         }
     }
 
     fun setTimezone(tzId: String) {
-        viewModelScope.launch { settingsRepository.setTimezone(tzId) }
+        viewModelScope.launch {
+            settingsRepository.setTimezone(tzId)
+            syncRemindersIfNeeded()
+        }
     }
 
     fun setCalculationMethod(method: CalculationMethod) {
-        viewModelScope.launch { settingsRepository.setCalculationMethod(method) }
+        viewModelScope.launch {
+            settingsRepository.setCalculationMethod(method)
+            syncRemindersIfNeeded()
+        }
+    }
+
+    fun setAsrMadhhab(madhhab: AsrMadhhab) {
+        viewModelScope.launch {
+            settingsRepository.setAsrMadhhab(madhhab)
+            syncRemindersIfNeeded()
+        }
+    }
+
+    fun setPrayerNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setPrayerNotificationsEnabled(enabled)
+            val updated = settingsRepository.settingsFlow.first()
+            PrayerReminderScheduler.syncSchedule(appContext, updated)
+        }
+    }
+
+    private suspend fun syncRemindersIfNeeded() {
+        val current = settingsRepository.settingsFlow.first()
+        PrayerReminderScheduler.syncSchedule(appContext, current)
     }
 
     private var locationCancelSignal: CancellationSignal? = null
@@ -214,6 +276,7 @@ class ToolsViewModel(
                 longitude = lon,
                 timezoneId = TimeZone.getDefault().id
             )
+            syncRemindersIfNeeded()
         }
     }
 

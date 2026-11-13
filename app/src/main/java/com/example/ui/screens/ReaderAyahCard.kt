@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,8 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,7 +44,9 @@ import com.example.domain.TajweedParser
 import com.example.localization.AppStrings
 import com.example.ui.components.IslamicNumberMedallion
 import com.example.ui.theme.AmiriFontFamily
+import com.example.ui.theme.ReaderThemePalette
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ReaderAyahCard(
     ayah: AyahEntity,
@@ -52,12 +58,22 @@ internal fun ReaderAyahCard(
     onOpenTafsir: () -> Unit,
     onOpenNote: () -> Unit,
     onToggleBookmark: () -> Unit,
-    onMarkLastRead: () -> Unit
+    onMarkLastRead: () -> Unit,
+    palette: ReaderThemePalette? = null,
+    onCopyAyah: () -> Unit = {},
+    onShareAyah: () -> Unit = {}
 ) {
+    val cardBg = palette?.cardSurface ?: MaterialTheme.colorScheme.surface
+    val cardBorder = palette?.cardBorder ?: MaterialTheme.colorScheme.outline
+    val arabicColor = palette?.arabicText ?: MaterialTheme.colorScheme.onSurface
+    val translationColor = palette?.translationText ?: MaterialTheme.colorScheme.onSurface
+    val mutedColor = palette?.secondaryText ?: MaterialTheme.colorScheme.onSurfaceVariant
+    val accentColor = palette?.accent ?: MaterialTheme.colorScheme.primary
+
     val borderStroke = if (isPlayingThis) {
-        BorderStroke(1.8.dp, MaterialTheme.colorScheme.primary)
+        BorderStroke(1.8.dp, accentColor)
     } else {
-        BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        BorderStroke(1.dp, cardBorder)
     }
 
     Card(
@@ -66,9 +82,9 @@ internal fun ReaderAyahCard(
             .testTag("ayah_card_${ayah.surahNumber}_${ayah.numberInSurah}"),
         colors = CardDefaults.cardColors(
             containerColor = if (isPlayingThis) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                accentColor.copy(alpha = 0.14f)
             } else {
-                MaterialTheme.colorScheme.surface
+                cardBg
             }
         ),
         border = borderStroke
@@ -86,24 +102,24 @@ internal fun ReaderAyahCard(
                     IslamicNumberMedallion(number = ayah.numberInSurah, size = 36.dp)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
                     ) {
                         Text(
                             text = "${strings.juzLabel} ${ayah.juz} • ${strings.pageLabel} ${ayah.page}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = mutedColor,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                     if (ayah.sajdah) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
+                            color = accentColor.copy(alpha = 0.16f)
                         ) {
                             Text(
                                 text = strings.sajdahLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = accentColor,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -114,7 +130,7 @@ internal fun ReaderAyahCard(
                 Text(
                     text = "${ayah.surahNumber}:${ayah.numberInSurah}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = accentColor
                 )
             }
 
@@ -139,6 +155,7 @@ internal fun ReaderAyahCard(
                         fontFamily = AmiriFontFamily,
                         fontSize = settings.arabicFontSizeSp.sp,
                         lineHeight = lineHeightSp,
+                        color = arabicColor,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -150,7 +167,7 @@ internal fun ReaderAyahCard(
                     text = ayah.textSomali,
                     fontSize = settings.translationFontSizeSp.sp,
                     lineHeight = (settings.translationFontSizeSp * 1.48f).sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = translationColor
                 )
             }
 
@@ -160,13 +177,13 @@ internal fun ReaderAyahCard(
                     text = ayah.textEnglish,
                     fontSize = (settings.translationFontSizeSp - 0.5f).coerceAtLeast(12f).sp,
                     lineHeight = (settings.translationFontSizeSp * 1.42f).sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = mutedColor
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
@@ -177,7 +194,27 @@ internal fun ReaderAyahCard(
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = strings.playAyah,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = accentColor
+                    )
+                }
+                IconButton(
+                    onClick = onCopyAyah,
+                    modifier = Modifier.testTag("copy_ayah_${ayah.numberInSurah}")
+                ) {
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = strings.copyAyah,
+                        tint = mutedColor
+                    )
+                }
+                IconButton(
+                    onClick = onShareAyah,
+                    modifier = Modifier.testTag("share_ayah_${ayah.numberInSurah}")
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = strings.shareAyah,
+                        tint = mutedColor
                     )
                 }
                 IconButton(
@@ -186,14 +223,15 @@ internal fun ReaderAyahCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.MenuBook,
-                        contentDescription = strings.tafsirTitle
+                        contentDescription = strings.tafsirTitle,
+                        tint = mutedColor
                     )
                 }
                 IconButton(
                     onClick = onOpenNote,
                     modifier = Modifier.testTag("note_ayah_${ayah.numberInSurah}")
                 ) {
-                    Icon(Icons.Default.EditNote, contentDescription = strings.addNote)
+                    Icon(Icons.Default.EditNote, contentDescription = strings.addNote, tint = mutedColor)
                 }
                 IconButton(
                     onClick = onToggleBookmark,
@@ -202,7 +240,7 @@ internal fun ReaderAyahCard(
                     Icon(
                         imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                         contentDescription = strings.bookmarksTab,
-                        tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isBookmarked) accentColor else mutedColor
                     )
                 }
                 IconButton(
@@ -211,7 +249,8 @@ internal fun ReaderAyahCard(
                 ) {
                     Icon(
                         Icons.Default.CheckCircleOutline,
-                        contentDescription = strings.markAsLastRead
+                        contentDescription = strings.markAsLastRead,
+                        tint = mutedColor
                     )
                 }
             }
