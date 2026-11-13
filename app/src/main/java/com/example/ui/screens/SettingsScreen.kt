@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
@@ -67,13 +67,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.DataManifest
-import com.example.data.local.UserSettings
-import com.example.domain.RecitersCatalog
-import com.example.localization.AppLanguage
-import com.example.localization.AppStrings
-import com.example.ui.theme.AppThemeMode
-import com.example.ui.theme.ReadingTheme
+import com.nuur.muslim.data.local.DataManifest
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.RecitersCatalog
+import com.nuur.muslim.localization.AppLanguage
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.theme.AppThemeMode
+import com.nuur.muslim.ui.theme.ReadingTheme
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
