@@ -1,12 +1,12 @@
-package com.example
+package com.nuur.muslim
 
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.example.data.local.QuranDatabase
-import com.example.data.repository.AdhkarRepository
-import com.example.data.repository.QuranRepository
-import com.example.domain.TajweedParser
+import com.nuur.muslim.data.local.QuranDatabase
+import com.nuur.muslim.data.repository.AdhkarRepository
+import com.nuur.muslim.data.repository.QuranRepository
+import com.nuur.muslim.domain.TajweedParser
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
