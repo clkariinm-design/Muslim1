@@ -3,8 +3,8 @@
 **Effective date:** [INSERT PUBLICATION DATE]  
 **App:** Nuur Qur’an  
 **Android package:** `com.nuur.muslim`  
-**Developer / data controller:** [INSERT LEGAL NAME OR BUSINESS NAME]  
-**Privacy contact:** [INSERT MONITORED PRIVACY EMAIL]  
+**Developer / data controller:** Abdikariim (independent developer; confirm full legal name before publication)  
+**Privacy contact:** nuurquraan0@gmail.com  
 **Public policy URL:** [INSERT HTTPS URL]
 
 > **Publication blocker:** This is a project-specific draft based on the current README and Android manifest. It is not ready to publish until every bracketed field is completed and the developer has checked the actual source code, SDKs, network requests, backup behavior, and Google Play Data safety answers. Do not publish this draft with placeholders.
@@ -78,7 +78,7 @@ You can:
 - Use manual city selection where available.
 - Remove locally stored app data by clearing app storage or uninstalling, subject to Android backup behavior.
 
-For privacy questions or requests, contact: **[INSERT MONITORED PRIVACY EMAIL]**.
+For privacy questions or requests, contact: **nuurquraan0@gmail.com**.
 
 ## 11. Changes to this policy
 
@@ -86,8 +86,8 @@ The developer may update this policy when app features, data practices, or legal
 
 ## 12. Contact
 
-**Developer / data controller:** [INSERT LEGAL NAME OR BUSINESS NAME]  
-**Privacy email:** [INSERT MONITORED PRIVACY EMAIL]  
+**Developer / data controller:** Abdikariim (independent developer; confirm full legal name before publication)  
+**Privacy email:** nuurquraan0@gmail.com  
 **Postal address (if legally required):** [INSERT BUSINESS ADDRESS OR REMOVE AFTER LEGAL REVIEW]
 
 ---
