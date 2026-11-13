@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
@@ -64,16 +64,16 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.audio.PlaybackUiState
-import com.example.data.local.AyahEntity
-import com.example.data.local.SurahEntity
-import com.example.data.local.UserSettings
-import com.example.localization.AppStrings
-import com.example.ui.components.GoldOrnamentalDivider
-import com.example.ui.theme.AmiriFontFamily
-import com.example.ui.theme.ReadingTheme
-import com.example.ui.theme.readerPaletteFor
-import com.example.ui.viewmodel.OnlineTafsirState
+import com.nuur.muslim.audio.PlaybackUiState
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.SurahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.components.GoldOrnamentalDivider
+import com.nuur.muslim.ui.theme.AmiriFontFamily
+import com.nuur.muslim.ui.theme.ReadingTheme
+import com.nuur.muslim.ui.theme.readerPaletteFor
+import com.nuur.muslim.ui.viewmodel.OnlineTafsirState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
