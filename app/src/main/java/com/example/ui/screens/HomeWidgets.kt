@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -31,10 +31,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.data.local.UserSettings
-import com.example.domain.DailyPrayerTimes
-import com.example.domain.NextPrayerCountdown
-import com.example.localization.AppStrings
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.DailyPrayerTimes
+import com.nuur.muslim.domain.NextPrayerCountdown
+import com.nuur.muslim.localization.AppStrings
 
 @Composable
 internal fun HomeNextPrayerCountdownBanner(
