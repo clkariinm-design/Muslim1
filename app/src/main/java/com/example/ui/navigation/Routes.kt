@@ -1,4 +1,4 @@
-package com.example.ui.navigation
+package com.nuur.muslim.ui.navigation
 
 import kotlinx.serialization.Serializable
 
