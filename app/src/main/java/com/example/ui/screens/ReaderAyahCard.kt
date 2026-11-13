@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -38,13 +38,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.local.AyahEntity
-import com.example.data.local.UserSettings
-import com.example.domain.TajweedParser
-import com.example.localization.AppStrings
-import com.example.ui.components.IslamicNumberMedallion
-import com.example.ui.theme.AmiriFontFamily
-import com.example.ui.theme.ReaderThemePalette
+import com.nuur.muslim.data.local.AyahEntity
+import com.nuur.muslim.data.local.UserSettings
+import com.nuur.muslim.domain.TajweedParser
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.components.IslamicNumberMedallion
+import com.nuur.muslim.ui.theme.AmiriFontFamily
+import com.nuur.muslim.ui.theme.ReaderThemePalette
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
