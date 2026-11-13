@@ -1,4 +1,4 @@
-package com.example.notifications
+package com.nuur.muslim.notifications
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -21,8 +21,8 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.example.MainActivity
-import com.example.R
+import com.nuur.muslim.MainActivity
+import com.nuur.muslim.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -275,8 +275,8 @@ class AdhanPlaybackService : Service() {
         private const val NOTIFICATION_ID = 4105
         private const val MAX_PLAYBACK_MS = 5 * 60 * 1000L
 
-        const val ACTION_START_ADHAN = "com.example.notifications.ACTION_START_ADHAN"
-        const val ACTION_STOP_ADHAN = "com.example.notifications.ACTION_STOP_ADHAN"
+        const val ACTION_START_ADHAN = "com.nuur.muslim.notifications.ACTION_START_ADHAN"
+        const val ACTION_STOP_ADHAN = "com.nuur.muslim.notifications.ACTION_STOP_ADHAN"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_PRAYER_NAME = "extra_prayer_name"
         const val EXTRA_PRAYER_TIME = "extra_prayer_time"
