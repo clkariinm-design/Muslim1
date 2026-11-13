@@ -1,4 +1,4 @@
-package com.example.ui.screens
+package com.nuur.muslim.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -41,10 +41,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.repository.SearchResults
-import com.example.localization.AppStrings
-import com.example.ui.components.IslamicNumberMedallion
-import com.example.ui.theme.AmiriFontFamily
+import com.nuur.muslim.data.repository.SearchResults
+import com.nuur.muslim.localization.AppStrings
+import com.nuur.muslim.ui.components.IslamicNumberMedallion
+import com.nuur.muslim.ui.theme.AmiriFontFamily
 
 @Composable
 fun SearchScreen(
