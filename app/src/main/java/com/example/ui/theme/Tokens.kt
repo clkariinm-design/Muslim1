@@ -1,4 +1,4 @@
-package com.example.ui.theme
+package com.nuur.muslim.ui.theme
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
