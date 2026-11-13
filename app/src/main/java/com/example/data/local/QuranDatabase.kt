@@ -1,4 +1,4 @@
-package com.example.data.local
+package com.nuur.muslim.data.local
 
 import android.content.Context
 import androidx.room.Database
